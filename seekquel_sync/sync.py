@@ -5,7 +5,8 @@ from calibre_plugins.seekquel_sync.api import (
     SeekquelUnreachable,
 )
 from calibre_plugins.seekquel_sync.columns import read_book, write_book
-from calibre_plugins.seekquel_sync.config import prefs
+from calibre_plugins.seekquel_sync.config import library_id, prefs, pull_mark, set_pull_mark
+from calibre_plugins.seekquel_sync.log import note
 
 CHUNK_SIZE = 100
 
@@ -17,6 +18,7 @@ def api():
 
 
 def push_library(db, book_ids, notifications=None, log=None, abort=None):
+    note(f'Push started: {len(book_ids)} books')
     client = api()
     chunk_size = _chunk_size(client, log)
 
@@ -43,7 +45,7 @@ def push_library(db, book_ids, notifications=None, log=None, abort=None):
         if not payload:
             continue
 
-        result = client.push_library(payload, prefs.get('library_uuid') or None)
+        result = client.push_library(payload, library_id(db) or None)
         taken = int(result.get('books_accepted') or 0)
         accepted += taken
         _note(log, f'Sent {len(payload)} books, Seekquel took {taken}')
@@ -51,17 +53,21 @@ def push_library(db, book_ids, notifications=None, log=None, abort=None):
         _report(notifications, min(index + chunk_size, total) / max(total, 1),
                 f'Sent {min(index + chunk_size, total)} of {total} books')
 
+    note(f'Push finished: accepted {accepted}, skipped {skipped}, of {total}')
+
     return {'accepted': accepted, 'skipped': skipped, 'total': total}
 
 
 def pull_library(db, notifications=None, log=None, abort=None):
+    since = pull_mark(db)
+    note(f"Pull started, since {since or 'the beginning'}")
     client = api()
 
     updated = 0
     unmatched = 0
     missing = 0
-    pages = 0
-    since = prefs.get('last_pulled_at') or None
+    seen = 0
+    written = []
     by_uuid = _uuid_index(db)
 
     while True:
@@ -84,24 +90,30 @@ def pull_library(db, notifications=None, log=None, abort=None):
 
             if write_book(db, book_id, row):
                 updated += 1
+                written.append(book_id)
 
         synced_at = result.get('synced_at')
 
         if synced_at:
             since = synced_at
-            prefs['last_pulled_at'] = synced_at
-            prefs.commit()
+            set_pull_mark(db, synced_at)
 
-        pages += 1
+        seen += len(rows)
         _note(log, f'Read {len(rows)} books back from Seekquel')
-        _report(notifications, 0.99, f'Read {pages * len(rows)} books back from Seekquel')
+        _report(notifications, 1.0 if not result.get('has_more') else 0.5,
+                f'Read {seen} books back from Seekquel')
 
         if not result.get('has_more') or not rows or not synced_at:
             break
 
     _note(log, f'Updated {updated}, waiting on you {unmatched}, not in this library {missing}')
 
-    return {'updated': updated, 'unmatched': unmatched, 'missing': missing}
+    return {
+        'updated': updated,
+        'unmatched': unmatched,
+        'missing': missing,
+        'book_ids': written,
+    }
 
 
 def report_device(gui, log=None):
@@ -124,10 +136,7 @@ def _chunk_size(client, log=None):
         _note(log, f'Could not ask Seekquel how many books it takes at once: {error}')
         published = 0
 
-    if published <= 0:
-        return CHUNK_SIZE
-
-    return min(published, CHUNK_SIZE) if published < CHUNK_SIZE else published
+    return published if published > 0 else CHUNK_SIZE
 
 
 def _uuid_index(db):
@@ -150,6 +159,8 @@ def _device_name(gui):
 
 
 def _note(log, message):
+    note(message)
+
     if log is not None:
         log(message)
 

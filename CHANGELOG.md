@@ -4,6 +4,36 @@ All notable changes to this project are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-08-24
+
+### Added
+
+- **The toolbar button has the Seekquel mark on it** instead of Calibre's generic plugin
+  icon, so it is findable at a glance among the other buttons.
+- **A log you can read.** Seekquel, Show the log lists every request the plugin made, what
+  came back and how long it took, along with the books a sync skipped and why. It is the
+  first thing to look at when a sync does not do what you expected, and the right thing to
+  attach to a bug report. It lives beside Calibre's other plugin files as
+  `plugins/seekquel-sync.log` and trims itself, so it cannot grow without bound.
+
+### Fixed
+
+- **Settings opens.** Choosing Settings from the Seekquel menu raised an error instead,
+  and because the menu is rebuilt each time you open it, the error appeared every time.
+  Nothing below Settings in that menu could be reached either.
+- **Reviews actually sync.** The Review column could be mapped and the Reviews switch
+  could be turned on, and neither did anything: a review was sent, counted and then
+  dropped, and none ever came back. Reviews now travel in both directions, converted
+  between Calibre's formatting and Seekquel's on the way.
+- **Two libraries no longer share one place-marker.** Reading Seekquel's answers back in
+  one library moved the marker for all of them, so the next library asked only for what
+  had changed since, and quietly skipped everything before that. Each library now keeps
+  its own.
+- **The tag browser updates after reading Seekquel's answers back.** A status column shown
+  in the tag browser kept the old counts until Calibre was restarted.
+- **Books sent to Seekquel now carry which library they came from.** They were all
+  arriving unlabelled.
+
 ## [1.0.1] - 2026-08-24
 
 ### Fixed
@@ -53,5 +83,6 @@ First release.
   cannot know when you read those pages, and crediting them to today would bill an
   afternoon for a book you finished months ago.
 
+[1.1.0]: https://github.com/sabristratos/seekquel-calibre/releases/tag/v1.1.0
 [1.0.1]: https://github.com/sabristratos/seekquel-calibre/releases/tag/v1.0.1
 [1.0.0]: https://github.com/sabristratos/seekquel-calibre/releases/tag/v1.0.0

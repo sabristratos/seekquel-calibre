@@ -8,6 +8,7 @@ from calibre_plugins.seekquel_sync.api import (
     SeekquelUnreachable,
 )
 from calibre_plugins.seekquel_sync.config import DEFAULT_BASE_URL, prefs
+from calibre_plugins.seekquel_sync.log import note
 from qt.core import (
     QDialog,
     QDialogButtonBox,
@@ -96,6 +97,7 @@ class PairDialog(QDialog):
 
             return
 
+        note(f'Pairing started against {base_url}')
         self.device_code = answer.get('device_code')
         self.code.setText(answer.get('user_code') or '')
         self.state.setText('Waiting for you to approve it in Seekquel...')
@@ -134,13 +136,14 @@ class PairDialog(QDialog):
 
         prefs['key'] = key
         prefs['device_id'] = answer.get('device_id') or ''
-        prefs['last_pulled_at'] = ''
+        prefs['pull_marks'] = {}
 
         if answer.get('api_url'):
             prefs['base_url'] = answer['api_url'].rstrip('/')
 
         prefs.commit()
 
+        note('Pairing approved, this library is connected')
         self._report_install()
         self.accept()
 
@@ -149,6 +152,7 @@ class PairDialog(QDialog):
             self._api().report_device(self._library_name(), 'calibre', __version__)
 
     def _fail(self, message):
+        note(f'Pairing failed: {message}')
         self._stop_timer()
         self.state.setText(message)
         self.code.setText('')

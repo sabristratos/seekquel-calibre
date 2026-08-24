@@ -1,4 +1,6 @@
+from calibre.ebooks.markdown import Markdown
 from calibre.utils.date import parse_date, utcnow
+from calibre.utils.html2text import html2text
 from calibre_plugins.seekquel_sync.config import STATUS_VALUES, prefs
 
 CALIBRE_RATING_SCALE = 2.0
@@ -52,10 +54,10 @@ def read_state(db, book_id):
             state['rating'] = rating
 
     if prefs.get('push_reviews'):
-        review = _column_value(db, book_id, prefs.get('review_column'))
+        review = _read_review(db, book_id)
 
-        if isinstance(review, str) and review.strip():
-            state['review'] = review.strip()
+        if review:
+            state['review'] = review
 
     if prefs.get('push_dates'):
         started = _read_date(db, book_id, prefs.get('started_column'))
@@ -87,6 +89,16 @@ def write_book(db, book_id, remote):
 
     if rating is not None and prefs.get('rating_column'):
         changes[prefs['rating_column']] = round(float(rating) * CALIBRE_RATING_SCALE)
+
+    review = remote.get('review')
+
+    if (
+        isinstance(review, str)
+        and review.strip()
+        and prefs.get('review_column')
+        and _read_review(db, book_id) is None
+    ):
+        changes[prefs['review_column']] = _to_html(review)
 
     started = _parse_iso_date(remote.get('started_at'))
 
@@ -159,6 +171,25 @@ def _column_value(db, book_id, column):
         return db.field_for(column, book_id)
     except Exception:
         return None
+
+
+def _read_review(db, book_id):
+    value = _column_value(db, book_id, prefs.get('review_column'))
+
+    if not isinstance(value, str) or not value.strip():
+        return None
+
+    try:
+        return html2text(value).strip() or None
+    except Exception:
+        return value.strip()
+
+
+def _to_html(review):
+    try:
+        return Markdown().convert(review)
+    except Exception:
+        return review
 
 
 def _read_rating(db, book_id):

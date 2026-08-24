@@ -1,4 +1,5 @@
 target-version = "py38"
+builtins = ["get_icons", "get_resources"]
 line-length = 110
 
 [lint]

@@ -1,3 +1,4 @@
+from calibre.gui2.ui import get_gui
 from calibre.utils.config import JSONConfig
 from qt.core import (
     QCheckBox,
@@ -35,8 +36,7 @@ DEFAULTS = {
     'base_url': DEFAULT_BASE_URL,
     'key': '',
     'device_id': '',
-    'library_uuid': '',
-    'last_pulled_at': '',
+    'pull_marks': {},
     'push_ratings': True,
     'push_reviews': True,
     'push_dates': True,
@@ -60,14 +60,31 @@ def is_connected():
 def forget_connection():
     prefs['key'] = ''
     prefs['device_id'] = ''
-    prefs['last_pulled_at'] = ''
+    prefs['pull_marks'] = {}
+    prefs.commit()
+
+
+def library_id(db):
+    try:
+        return db.library_id or ''
+    except Exception:
+        return ''
+
+
+def pull_mark(db):
+    return (prefs.get('pull_marks') or {}).get(library_id(db)) or None
+
+
+def set_pull_mark(db, value):
+    marks = dict(prefs.get('pull_marks') or {})
+    marks[library_id(db)] = value
+    prefs['pull_marks'] = marks
     prefs.commit()
 
 
 class ConfigWidget(QWidget):
-    def __init__(self, plugin_action=None):
+    def __init__(self):
         QWidget.__init__(self)
-        self.plugin_action = plugin_action
         self.column_boxes = {}
 
         layout = QVBoxLayout(self)
@@ -169,8 +186,7 @@ class ConfigWidget(QWidget):
         box.setCurrentIndex(max(index, 0))
 
     def _custom_columns(self):
-        gui = getattr(self.plugin_action, 'gui', None)
-        db = getattr(gui, 'current_db', None)
+        db = getattr(get_gui(), 'current_db', None)
 
         if db is None:
             return {}
@@ -180,7 +196,7 @@ class ConfigWidget(QWidget):
     def _connect(self):
         from calibre.gui2 import error_dialog
 
-        gui = getattr(self.plugin_action, 'gui', None)
+        gui = get_gui()
 
         if gui is None:
             error_dialog(self, 'Seekquel', 'Open this from the Seekquel toolbar button.', show=True)

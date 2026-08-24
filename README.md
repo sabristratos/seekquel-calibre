@@ -64,11 +64,27 @@ Matching happens on the server, so give it a moment before reading the results b
 mapped. Each matched book also gains a `seekquel` identifier, which is what **View this
 book on Seekquel** uses.
 
+## When something is not right
+
+**Seekquel > Show the log** lists every request the plugin made, what came back and how
+long it took, plus the books a sync skipped and the reason. Read it before assuming
+nothing happened: a sync that appears to do nothing is usually one that sent books the
+server has already seen.
+
+The file sits beside Calibre's other plugin files, as `plugins/seekquel-sync.log` inside
+your Calibre configuration directory, and trims itself, so it cannot grow without bound.
+Attach it to a bug report.
+
 ## What it will not do
 
 **It never clears anything.** A field Seekquel does not hold leaves your Calibre column
 exactly as you typed it. Most people map two or three columns out of six, so reading an
 empty answer as "delete this" would empty a library the first time anybody synced.
+
+**It never rewrites a review.** Reviews are the one field where both sides refuse to
+overwrite: a review you typed in Calibre is not replaced by Seekquel's, and one you wrote
+in Seekquel is not replaced by your Calibre column. Whichever side is empty gets filled.
+Everything else is short enough that losing it costs a retype; paragraphs are not.
 
 **It never un-marks a finished book.** Marking a book read in Seekquel posts to your feed,
 counts towards a reading goal and can earn a badge. A status column you last touched two

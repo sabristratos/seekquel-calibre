@@ -1,13 +1,17 @@
+from calibre import prepare_string_for_xml
 from calibre.gui2 import error_dialog, gprefs, info_dialog, open_url, question_dialog
 from calibre.gui2.actions import InterfaceAction
 from calibre.gui2.threaded_jobs import ThreadedJob
 from calibre_plugins.seekquel_sync import __version__
 from calibre_plugins.seekquel_sync.api import SeekquelError, SeekquelUnreachable
 from calibre_plugins.seekquel_sync.config import forget_connection, is_connected, prefs
+from calibre_plugins.seekquel_sync.log import log_path, read_log
 from calibre_plugins.seekquel_sync.sync import pull_library, push_library
 from qt.core import QMenu, QToolButton, QUrl
 
 WEB_URL = 'https://seekquel.app'
+
+ICON_PATH = 'images/seekquel.png'
 
 TOOLBAR_KEY = 'action-layout-toolbar'
 
@@ -19,6 +23,7 @@ class SeekquelSyncAction(InterfaceAction):
     action_type = 'current'
 
     def genesis(self):
+        self.qaction.setIcon(get_icons(ICON_PATH, 'Seekquel Sync'))
         self.menu = QMenu(self.gui)
         self.qaction.setMenu(self.menu)
         self.menu.aboutToShow.connect(self.rebuild_menu)
@@ -54,6 +59,7 @@ class SeekquelSyncAction(InterfaceAction):
         if not is_connected():
             self.menu.addAction('Connect to Seekquel...').triggered.connect(self.connect)
             self.menu.addSeparator()
+            self.menu.addAction('Show the log...').triggered.connect(self.show_log)
             self.menu.addAction('Open Seekquel').triggered.connect(self.open_site)
 
             return
@@ -66,6 +72,7 @@ class SeekquelSyncAction(InterfaceAction):
         self.menu.addAction('View this book on Seekquel').triggered.connect(self.open_book)
         self.menu.addSeparator()
         self.menu.addAction('Settings...').triggered.connect(self.show_configuration)
+        self.menu.addAction('Show the log...').triggered.connect(self.show_log)
         self.menu.addAction('Disconnect').triggered.connect(self.disconnect)
 
     def library_changed(self, _db):
@@ -152,6 +159,24 @@ class SeekquelSyncAction(InterfaceAction):
         self.interface_action_base_plugin.do_user_config(self.gui)
         self.rebuild_menu()
 
+    def show_log(self):
+        from calibre.gui2.dialogs.message_box import ViewLog
+
+        text = read_log()
+
+        if not text.strip():
+            info_dialog(
+                self.gui,
+                'Nothing logged yet',
+                f'Seekquel has not recorded anything yet.\n\nThe log lives at {log_path()}.',
+                show=True,
+            )
+
+            return
+
+        dialog = ViewLog('Seekquel log', f'<pre>{prepare_string_for_xml(text)}</pre>', parent=self.gui)
+        dialog.exec()
+
     def _push(self, book_ids):
         if not book_ids:
             error_dialog(self.gui, 'Nothing to send', 'This library has no books in it.', show=True)
@@ -216,8 +241,15 @@ class SeekquelSyncAction(InterfaceAction):
         if result.get('missing'):
             message += f"\n\n{result['missing']} books Seekquel knows about are not in this library."
 
-        self.gui.library_view.model().refresh()
+        self._refresh_books(result.get('book_ids') or ())
         info_dialog(self.gui, 'Up to date', message, show=True)
+
+    def _refresh_books(self, book_ids):
+        if not book_ids:
+            return
+
+        self.gui.library_view.model().refresh_ids(list(book_ids))
+        self.gui.tags_view.recount()
 
     def _report_failure(self, job, title):
         error = getattr(job, 'exception', None)

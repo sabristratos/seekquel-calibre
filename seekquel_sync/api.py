@@ -1,13 +1,18 @@
 import json
 import ssl
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
 
-USER_AGENT = 'Seekquel-Calibre/1.0 (+https://seekquel.app)'
+from calibre_plugins.seekquel_sync import __version__
+from calibre_plugins.seekquel_sync.log import note
+
+USER_AGENT = f'Seekquel-Calibre/{__version__} (+https://seekquel.app)'
 
 CONNECT_TIMEOUT = 30
 UPLOAD_TIMEOUT = 60
+POLL_TIMEOUT = 10
 
 
 class SeekquelError(Exception):
@@ -39,7 +44,13 @@ class SeekquelApi:
         }, authenticated=False)
 
     def poll_pairing(self, device_code):
-        return self._request('POST', '/pair/poll', body={'device_code': device_code}, authenticated=False)
+        return self._request(
+            'POST',
+            '/pair/poll',
+            body={'device_code': device_code},
+            authenticated=False,
+            timeout=POLL_TIMEOUT,
+        )
 
     def report_device(self, device_name, platform, app_version):
         return self._request('PUT', '/device', body={
@@ -86,14 +97,26 @@ class SeekquelApi:
 
             request.add_header('Authorization', 'Bearer ' + self.key)
 
+        started = time.monotonic()
+
         try:
             with urllib.request.urlopen(request, timeout=timeout, context=self._ssl_context()) as response:
-                return self._decode(response.read())
+                body = self._decode(response.read())
+                note(f'{method} {path} -> {response.status} in {time.monotonic() - started:.1f}s')
+
+                return body
         except urllib.error.HTTPError as error:
-            raise self._from_http_error(error) from error
+            refusal = self._from_http_error(error)
+            note(f'{method} {path} -> {error.code} {refusal.code or ""} {refusal}')
+
+            raise refusal from error
         except urllib.error.URLError as error:
+            note(f'{method} {path} -> could not reach {self.base_url}: {error.reason}')
+
             raise SeekquelUnreachable(f'Could not reach {self.base_url}: {error.reason}') from error
         except (TimeoutError, ssl.SSLError, OSError) as error:
+            note(f'{method} {path} -> could not reach {self.base_url}: {error}')
+
             raise SeekquelUnreachable(f'Could not reach {self.base_url}: {error}') from error
 
     def _ssl_context(self):
