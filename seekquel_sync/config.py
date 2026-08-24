@@ -41,6 +41,7 @@ DEFAULTS = {
     'push_reviews': True,
     'push_dates': True,
     'push_status': True,
+    'push_covers': True,
     'status_column': '',
     'rating_column': 'rating',
     'review_column': '',
@@ -132,6 +133,11 @@ class ConfigWidget(QWidget):
         self.push_ratings = self._checkbox('push_ratings', 'Ratings', sending_layout)
         self.push_reviews = self._checkbox('push_reviews', 'Reviews', sending_layout)
         self.push_dates = self._checkbox('push_dates', 'Reading dates', sending_layout)
+        self.push_covers = self._checkbox(
+            'push_covers',
+            'Covers, for books Seekquel has none for',
+            sending_layout,
+        )
         layout.addWidget(sending)
 
         layout.addStretch(1)
@@ -150,6 +156,7 @@ class ConfigWidget(QWidget):
         prefs['push_ratings'] = self.push_ratings.isChecked()
         prefs['push_reviews'] = self.push_reviews.isChecked()
         prefs['push_dates'] = self.push_dates.isChecked()
+        prefs['push_covers'] = self.push_covers.isChecked()
         prefs.commit()
 
     def _wrap(self, layout):

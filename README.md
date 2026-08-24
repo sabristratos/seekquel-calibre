@@ -50,8 +50,14 @@ restart after adding one.
 Status labels are read loosely, so a column already holding `Read`, `Currently reading`,
 `TBR`, `On hold`, `DNF` or `Finished` works without being renamed first.
 
-The four switches under **What to send** control what leaves Calibre. Turning off Reviews
+The switches under **What to send** control what leaves Calibre. Turning off Reviews
 keeps your reviews on your own machine; it does not stop Seekquel's reviews arriving.
+
+Covers are the fifth switch and behave differently from the rest: Seekquel asks for the
+ones it is missing and the plugin sends those and no others, up to twenty five per sync.
+A cover for a book only you have is used straight away. One for a catalogue book with no
+cover at all is offered as a suggestion and waits for a reviewer, since a catalogue cover
+is seen by everybody. A book that already has a cover is left alone.
 
 ## Sync
 
@@ -92,8 +98,9 @@ years ago is not grounds for taking all of that back.
 
 **It never invents a book.** A book the Seekquel catalogue cannot place is not guessed at
 and not silently filed as a private copy. It waits for you under **Settings > Integrations
-> Calibre > Books from Calibre**, where you can point it at the right book, say the
-catalogue does not have it, or set it aside. That last one matters for a real library: a
+> Calibre > Books from Calibre**, where you can look for it online, point it at the right
+book, say the catalogue does not have it, or set it aside. Looking online searches the book
+sources and shows you what came back; nothing is added until you pick one. That last one matters for a real library: a
 Calibre folder holds manuals, RPG rulebooks and conference papers alongside novels, and
 those are refused correctly and would otherwise sit in that list forever.
 

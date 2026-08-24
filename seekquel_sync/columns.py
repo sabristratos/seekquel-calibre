@@ -4,6 +4,8 @@ from calibre.utils.html2text import html2text
 from calibre_plugins.seekquel_sync.config import STATUS_VALUES, prefs
 
 CALIBRE_RATING_SCALE = 2.0
+MAX_TAGS = 40
+EARLIEST_PUBLICATION_YEAR = 1000
 
 STATUS_LABELS = dict(STATUS_VALUES)
 STATUS_BY_LABEL = {label.lower(): value for value, label in STATUS_VALUES}
@@ -35,7 +37,69 @@ def read_book(db, book_id):
         'series_index': db.field_for('series_index', book_id),
         'page_count': None,
         'state': read_state(db, book_id),
+        **read_metadata(db, book_id),
     }
+
+
+def read_metadata(db, book_id):
+    details = {}
+
+    description = _read_comments(db, book_id)
+
+    if description:
+        details['description'] = description
+
+    publisher = _column_value(db, book_id, 'publisher')
+
+    if isinstance(publisher, str) and publisher.strip():
+        details['publisher'] = publisher.strip()
+
+    published = _read_published_on(db, book_id)
+
+    if published:
+        details['published_on'] = published
+
+    languages = _column_value(db, book_id, 'languages') or ()
+
+    if languages:
+        details['language'] = str(languages[0])[:16]
+
+    tags = [str(tag) for tag in (_column_value(db, book_id, 'tags') or ()) if str(tag).strip()]
+
+    if tags:
+        details['tags'] = tags[:MAX_TAGS]
+
+    return details
+
+
+def _read_comments(db, book_id):
+    value = _column_value(db, book_id, 'comments')
+
+    if not isinstance(value, str) or not value.strip():
+        return None
+
+    try:
+        return html2text(value).strip() or None
+    except Exception:
+        return value.strip()
+
+
+def _read_published_on(db, book_id):
+    value = _column_value(db, book_id, 'pubdate')
+
+    if value is None:
+        return None
+
+    try:
+        if isinstance(value, str):
+            value = parse_date(value)
+
+        if value.year < EARLIEST_PUBLICATION_YEAR:
+            return None
+
+        return value.strftime('%Y-%m-%d')
+    except Exception:
+        return None
 
 
 def read_state(db, book_id):

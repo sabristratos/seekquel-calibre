@@ -241,6 +241,9 @@ class SeekquelSyncAction(InterfaceAction):
         if result.get('missing'):
             message += f"\n\n{result['missing']} books Seekquel knows about are not in this library."
 
+        if result.get('covers'):
+            message += f"\n\nSent {result['covers']} covers for books Seekquel had none for."
+
         self._refresh_books(result.get('book_ids') or ())
         info_dialog(self.gui, 'Up to date', message, show=True)
 

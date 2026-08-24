@@ -4,6 +4,24 @@ All notable changes to this project are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-08-24
+
+### Added
+
+- **Seekquel now gets the rest of what Calibre knows about a book**: the description, the
+  publisher, the publication date, the language and your tags. A book Seekquel does not
+  hold and that you keep as your own now arrives as a real record rather than a bare title
+  and author.
+- **Covers, for books Seekquel has none for.** It asks for the ones it is missing and the
+  plugin sends those and no others, up to twenty five per sync, so a large library does not
+  spend ten minutes uploading. A cover for a book only you have is used straight away; one
+  for a catalogue book that has no cover at all is offered as a suggestion and waits for a
+  reviewer, because a catalogue cover is seen by everybody. A book that already has one is
+  left alone. There is a switch for it under What to send.
+- **Look for it online.** A book Seekquel could not place now has a Find it online button
+  in the app, under Settings, Integrations, Calibre. It searches the book sources, shows
+  you what came back, and adds nothing until you pick one.
+
 ## [1.1.0] - 2026-08-24
 
 ### Added
@@ -83,6 +101,7 @@ First release.
   cannot know when you read those pages, and crediting them to today would bill an
   afternoon for a book you finished months ago.
 
+[1.2.0]: https://github.com/sabristratos/seekquel-calibre/releases/tag/v1.2.0
 [1.1.0]: https://github.com/sabristratos/seekquel-calibre/releases/tag/v1.1.0
 [1.0.1]: https://github.com/sabristratos/seekquel-calibre/releases/tag/v1.0.1
 [1.0.0]: https://github.com/sabristratos/seekquel-calibre/releases/tag/v1.0.0

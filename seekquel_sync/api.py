@@ -4,6 +4,8 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
+from pathlib import Path
 
 from calibre_plugins.seekquel_sync import __version__
 from calibre_plugins.seekquel_sync.log import note
@@ -13,6 +15,9 @@ USER_AGENT = f'Seekquel-Calibre/{__version__} (+https://seekquel.app)'
 CONNECT_TIMEOUT = 30
 UPLOAD_TIMEOUT = 60
 POLL_TIMEOUT = 10
+
+COVER_FIELD = 'cover'
+CRLF = '\r\n'
 
 
 class SeekquelError(Exception):
@@ -70,10 +75,44 @@ class SeekquelApi:
 
         return self._request('GET', '/library', query=query)
 
+    def upload_cover(self, book_uuid, filename, content):
+        boundary = uuid.uuid4().hex
+        body = self._multipart(boundary, COVER_FIELD, filename, content)
+
+        return self._request(
+            'POST',
+            f'/books/{urllib.parse.quote(book_uuid)}/cover',
+            raw=body,
+            content_type=f'multipart/form-data; boundary={boundary}',
+            timeout=UPLOAD_TIMEOUT,
+        )
+
     def search_books(self, term):
         return self._request('GET', '/books/search', query={'q': term})
 
-    def _request(self, method, path, body=None, query=None, authenticated=True, timeout=CONNECT_TIMEOUT):
+    def _multipart(self, boundary, field, filename, content):
+        prologue = (
+            '--' + boundary + CRLF
+            + 'Content-Disposition: form-data; name="' + field + '"; filename="'
+            + Path(filename).name + '"' + CRLF
+            + 'Content-Type: application/octet-stream' + CRLF + CRLF
+        ).encode('utf-8')
+
+        epilogue = (CRLF + '--' + boundary + '--' + CRLF).encode('utf-8')
+
+        return prologue + content + epilogue
+
+    def _request(
+        self,
+        method,
+        path,
+        body=None,
+        query=None,
+        authenticated=True,
+        timeout=CONNECT_TIMEOUT,
+        raw=None,
+        content_type=None,
+    ):
         if not self.base_url:
             raise SeekquelError('No Seekquel address is set.')
 
@@ -82,14 +121,14 @@ class SeekquelApi:
         if query:
             url += '?' + urllib.parse.urlencode({k: v for k, v in query.items() if v is not None})
 
-        payload = json.dumps(body).encode('utf-8') if body is not None else None
+        payload = raw if raw is not None else (json.dumps(body).encode('utf-8') if body is not None else None)
 
         request = urllib.request.Request(url, data=payload, method=method)
         request.add_header('Accept', 'application/json')
         request.add_header('User-Agent', USER_AGENT)
 
         if payload is not None:
-            request.add_header('Content-Type', 'application/json')
+            request.add_header('Content-Type', content_type or 'application/json')
 
         if authenticated:
             if not self.key:

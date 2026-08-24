@@ -9,6 +9,7 @@ from calibre_plugins.seekquel_sync.config import library_id, prefs, pull_mark, s
 from calibre_plugins.seekquel_sync.log import note
 
 CHUNK_SIZE = 100
+MAX_COVERS_PER_RUN = 25
 
 NEEDS_A_LOOK = ('unmatched', 'unidentified')
 
@@ -68,6 +69,7 @@ def pull_library(db, notifications=None, log=None, abort=None):
     missing = 0
     seen = 0
     written = []
+    wanted = []
     by_uuid = _uuid_index(db)
 
     while True:
@@ -92,6 +94,9 @@ def pull_library(db, notifications=None, log=None, abort=None):
                 updated += 1
                 written.append(book_id)
 
+            if row.get('wants_cover'):
+                wanted.append((row.get('uuid'), book_id))
+
         synced_at = result.get('synced_at')
 
         if synced_at:
@@ -106,6 +111,8 @@ def pull_library(db, notifications=None, log=None, abort=None):
         if not result.get('has_more') or not rows or not synced_at:
             break
 
+    covers = _send_covers(db, client, wanted, log, abort)
+
     _note(log, f'Updated {updated}, waiting on you {unmatched}, not in this library {missing}')
 
     return {
@@ -113,6 +120,7 @@ def pull_library(db, notifications=None, log=None, abort=None):
         'unmatched': unmatched,
         'missing': missing,
         'book_ids': written,
+        'covers': covers,
     }
 
 
@@ -126,6 +134,45 @@ def report_device(gui, log=None):
         return None
 
     return answer
+
+
+def _send_covers(db, client, wanted, log=None, abort=None):
+    if not wanted or not prefs.get('push_covers'):
+        return 0
+
+    sent = 0
+
+    for uuid, book_id in wanted[:MAX_COVERS_PER_RUN]:
+        if abort is not None and abort.is_set():
+            break
+
+        if not uuid:
+            continue
+
+        content = _cover_bytes(db, book_id)
+
+        if content is None:
+            continue
+
+        try:
+            client.upload_cover(uuid, f'{book_id}.jpg', content)
+            sent += 1
+        except (SeekquelError, SeekquelUnreachable) as error:
+            _note(log, f'Could not send a cover: {error}')
+
+            break
+
+    if sent:
+        _note(log, f'Sent {sent} covers')
+
+    return sent
+
+
+def _cover_bytes(db, book_id):
+    try:
+        return db.cover(book_id) or None
+    except Exception:
+        return None
 
 
 def _chunk_size(client, log=None):
