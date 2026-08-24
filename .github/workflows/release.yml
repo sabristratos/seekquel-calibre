@@ -29,11 +29,16 @@ jobs:
       - name: Build the plugin
         run: python build.py
 
-      - name: Name the archive after the release
-        run: mv "dist/Seekquel Sync.zip" "seekquel-sync-${GITHUB_REF_NAME}.zip"
+      # The name carries no version on purpose: it is what makes
+      # https://github.com/OWNER/REPO/releases/latest/download/seekquel-sync.zip
+      # a permanent direct download, which is the link the app's connect panel
+      # hands the reader. A versioned asset can only be linked through the
+      # release page, leaving them to find the file themselves.
+      - name: Name the archive
+        run: mv "dist/Seekquel Sync.zip" "seekquel-sync.zip"
 
       - name: Publish the release
         uses: softprops/action-gh-release@v2
         with:
-          files: seekquel-sync-${{ github.ref_name }}.zip
+          files: seekquel-sync.zip
           generate_release_notes: true
