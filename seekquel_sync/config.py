@@ -1,4 +1,3 @@
-from calibre.gui2.ui import get_gui
 from calibre.utils.config import JSONConfig
 from qt.core import (
     QCheckBox,
@@ -81,6 +80,12 @@ def set_pull_mark(db, value):
     marks[library_id(db)] = value
     prefs['pull_marks'] = marks
     prefs.commit()
+
+
+def _gui():
+    from calibre.gui2.ui import get_gui
+
+    return get_gui()
 
 
 class ConfigWidget(QWidget):
@@ -193,7 +198,7 @@ class ConfigWidget(QWidget):
         box.setCurrentIndex(max(index, 0))
 
     def _custom_columns(self):
-        db = getattr(get_gui(), 'current_db', None)
+        db = getattr(_gui(), 'current_db', None)
 
         if db is None:
             return {}
@@ -203,7 +208,7 @@ class ConfigWidget(QWidget):
     def _connect(self):
         from calibre.gui2 import error_dialog
 
-        gui = get_gui()
+        gui = _gui()
 
         if gui is None:
             error_dialog(self, 'Seekquel', 'Open this from the Seekquel toolbar button.', show=True)

@@ -4,6 +4,17 @@ All notable changes to this project are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-08-24
+
+### Fixed
+
+- **Calibre could crash on a dialog after installing 1.1.0 or 1.2.0.** The plugin was
+  loading part of Calibre's own main window while that window was still being built, which
+  leaves it half-finished and can take the program down later, in screens that have nothing
+  to do with Seekquel. It loads that piece only when it actually needs it now. Fully quit
+  and reopen Calibre after updating: a plugin swapped underneath a running Calibre is a
+  second, separate way to see this.
+
 ## [1.2.0] - 2026-08-24
 
 ### Added
@@ -101,6 +112,7 @@ First release.
   cannot know when you read those pages, and crediting them to today would bill an
   afternoon for a book you finished months ago.
 
+[1.2.1]: https://github.com/sabristratos/seekquel-calibre/releases/tag/v1.2.1
 [1.2.0]: https://github.com/sabristratos/seekquel-calibre/releases/tag/v1.2.0
 [1.1.0]: https://github.com/sabristratos/seekquel-calibre/releases/tag/v1.1.0
 [1.0.1]: https://github.com/sabristratos/seekquel-calibre/releases/tag/v1.0.1
