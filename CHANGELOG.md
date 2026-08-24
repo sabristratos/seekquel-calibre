@@ -4,6 +4,41 @@ All notable changes to this project are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-08-24
+
+### Added
+
+- **Your Calibre tags can become your tags in Seekquel.** Switch on "Tags, as your own tags
+  in Seekquel" under What to send, and the tags on each book come across as tags on your
+  copy in the app. It is off to begin with, because a Calibre tag is a personal filing
+  system and a library routinely carries "kindle", "borrowed" or "to-read" among the real
+  ones, and nobody's tag list should fill with those without being asked.
+- Tags are added, never removed. A tag you add in the app stays where it is however many
+  times the library is sent again.
+
+### Changed
+
+- **A heavily-tagged book no longer loses its tail.** The plugin used to cut every book to
+  forty tags; the ceiling is far higher now, and it reads the real one from the server so
+  an already-installed copy learns when it moves.
+
+## [1.2.3] - 2026-08-24
+
+### Fixed
+
+- **Sending your library no longer wedges Calibre.** The window that reports the result was
+  being built by the background task itself rather than by Calibre, which is not something
+  Qt allows: the window came up blank, the rest of Calibre stopped drawing, and the job
+  never finished, so the count in the corner stayed at one forever. Reading Seekquel's
+  answers back had the same fault. Both now hand the result to Calibre and let it put the
+  window up.
+- **Reading your library back no longer skips books.** Seekquel remembers where the last
+  read-back stopped by the time it happened, and it records times to the second, so a
+  library sent in one go leaves hundreds of books sharing a single second. Where a page of
+  results ended in the middle of one of those groups, the rest of it was never asked for
+  again and those books simply never came back. The place is now remembered as a book
+  rather than as a time.
+
 ## [1.2.2] - 2026-08-24
 
 ### Fixed
@@ -124,6 +159,7 @@ First release.
   cannot know when you read those pages, and crediting them to today would bill an
   afternoon for a book you finished months ago.
 
+[1.2.3]: https://github.com/sabristratos/seekquel-calibre/releases/tag/v1.2.3
 [1.2.2]: https://github.com/sabristratos/seekquel-calibre/releases/tag/v1.2.2
 [1.2.1]: https://github.com/sabristratos/seekquel-calibre/releases/tag/v1.2.1
 [1.2.0]: https://github.com/sabristratos/seekquel-calibre/releases/tag/v1.2.0

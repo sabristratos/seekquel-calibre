@@ -46,7 +46,7 @@ def push_library(db, book_ids, notifications=None, log=None, abort=None):
         if not payload:
             continue
 
-        result = client.push_library(payload, library_id(db) or None)
+        result = client.push_library(payload, library_id(db) or None, prefs.get('push_tags'))
         taken = int(result.get('books_accepted') or 0)
         accepted += taken
         _note(log, f'Sent {len(payload)} books, Seekquel took {taken}')
@@ -60,7 +60,7 @@ def push_library(db, book_ids, notifications=None, log=None, abort=None):
 
 
 def pull_library(db, notifications=None, log=None, abort=None):
-    since = pull_mark(db)
+    since, since_id = pull_mark(db)
     note(f"Pull started, since {since or 'the beginning'}")
     client = api()
 
@@ -76,7 +76,7 @@ def pull_library(db, notifications=None, log=None, abort=None):
         if abort is not None and abort.is_set():
             break
 
-        result = client.pull_library(since)
+        result = client.pull_library(since, since_id)
         rows = result.get('data') or []
 
         for row in rows:
@@ -98,10 +98,12 @@ def pull_library(db, notifications=None, log=None, abort=None):
                 wanted.append((row.get('uuid'), book_id))
 
         synced_at = result.get('synced_at')
+        synced_id = result.get('synced_id')
 
         if synced_at:
             since = synced_at
-            set_pull_mark(db, synced_at)
+            since_id = synced_id
+            set_pull_mark(db, synced_at, synced_id)
 
         seen += len(rows)
         _note(log, f'Read {len(rows)} books back from Seekquel')
@@ -179,11 +181,20 @@ def _chunk_size(client, log=None):
     try:
         answer = client.report_device(None, 'calibre', __version__)
         published = int(answer.get('max_books_per_push') or 0)
+        _remember_tag_ceiling(answer)
     except Exception as error:
         _note(log, f'Could not ask Seekquel how many books it takes at once: {error}')
         published = 0
 
     return published if published > 0 else CHUNK_SIZE
+
+
+def _remember_tag_ceiling(answer):
+    published = int(answer.get('max_tags_per_book') or 0)
+
+    if published > 0 and published != prefs.get('max_tags_per_book'):
+        prefs['max_tags_per_book'] = published
+        prefs.commit()
 
 
 def _uuid_index(db):

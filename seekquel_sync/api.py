@@ -64,14 +64,21 @@ class SeekquelApi:
             'app_version': app_version,
         })
 
-    def push_library(self, books, library_uuid=None):
+    def push_library(self, books, library_uuid=None, import_tags=False):
         return self._request('POST', '/library', body={
             'library_uuid': library_uuid,
             'books': books,
+            'import_tags': bool(import_tags),
         }, timeout=UPLOAD_TIMEOUT)
 
-    def pull_library(self, since=None):
-        query = {'since': since} if since else None
+    def pull_library(self, since=None, since_id=None):
+        query = None
+
+        if since:
+            query = {'since': since}
+
+            if since_id:
+                query['since_id'] = since_id
 
         return self._request('GET', '/library', query=query)
 

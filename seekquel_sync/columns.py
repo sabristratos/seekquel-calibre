@@ -4,7 +4,7 @@ from calibre.utils.html2text import html2text
 from calibre_plugins.seekquel_sync.config import STATUS_VALUES, prefs
 
 CALIBRE_RATING_SCALE = 2.0
-MAX_TAGS = 40
+MAX_TAGS = 250
 EARLIEST_PUBLICATION_YEAR = 1000
 
 STATUS_LABELS = dict(STATUS_VALUES)
@@ -21,6 +21,12 @@ STATUS_ALIASES = {
     'dnf': 'did_not_finish',
     'abandoned': 'did_not_finish',
 }
+
+
+def max_tags():
+    published = int(prefs.get('max_tags_per_book') or 0)
+
+    return published if published > 0 else MAX_TAGS
 
 
 def read_book(db, book_id):
@@ -64,10 +70,11 @@ def read_metadata(db, book_id):
     if languages:
         details['language'] = str(languages[0])[:16]
 
-    tags = [str(tag) for tag in (_column_value(db, book_id, 'tags') or ()) if str(tag).strip()]
+    if prefs.get('push_tags'):
+        tags = [str(tag) for tag in (_column_value(db, book_id, 'tags') or ()) if str(tag).strip()]
 
-    if tags:
-        details['tags'] = tags[:MAX_TAGS]
+        if tags:
+            details['tags'] = tags[:max_tags()]
 
     return details
 

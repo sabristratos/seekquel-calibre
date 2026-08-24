@@ -1,5 +1,5 @@
 from calibre import prepare_string_for_xml
-from calibre.gui2 import error_dialog, gprefs, info_dialog, open_url, question_dialog
+from calibre.gui2 import Dispatcher, error_dialog, gprefs, info_dialog, open_url, question_dialog
 from calibre.gui2.actions import InterfaceAction
 from calibre.gui2.threaded_jobs import ThreadedJob
 from calibre_plugins.seekquel_sync import __version__
@@ -14,6 +14,10 @@ WEB_URL = 'https://seekquel.app'
 ICON_PATH = 'images/seekquel.png'
 
 TOOLBAR_KEY = 'action-layout-toolbar'
+
+
+def _books(count):
+    return f'{count} book' if count == 1 else f'{count} books'
 
 
 class SeekquelSyncAction(InterfaceAction):
@@ -122,7 +126,7 @@ class SeekquelSyncAction(InterfaceAction):
             self._run_pull,
             (db,),
             {},
-            self._pull_finished,
+            Dispatcher(self._pull_finished),
             max_concurrent_count=1,
             killable=True,
         )
@@ -191,7 +195,7 @@ class SeekquelSyncAction(InterfaceAction):
             self._run_push,
             (db, book_ids),
             {},
-            self._push_finished,
+            Dispatcher(self._push_finished),
             max_concurrent_count=1,
             killable=True,
         )
@@ -210,10 +214,13 @@ class SeekquelSyncAction(InterfaceAction):
             return
 
         result = job.result or {}
-        message = f"Seekquel took {result.get('accepted', 0)} of {result.get('total', 0)} books."
+        skipped = result.get('skipped', 0)
+        message = f"Seekquel took {result.get('accepted', 0)} of {_books(result.get('total', 0))}."
 
-        if result.get('skipped'):
-            message += f"\n\n{result['skipped']} were skipped because Calibre has no id for them yet."
+        if skipped == 1:
+            message += '\n\nOne was skipped because Calibre has no id for it yet.'
+        elif skipped:
+            message += f'\n\n{skipped} were skipped because Calibre has no id for them yet.'
 
         message += (
             '\n\nMatching happens in the background, so give it a moment, then use '
@@ -229,20 +236,37 @@ class SeekquelSyncAction(InterfaceAction):
             return
 
         result = job.result or {}
-        message = f"Updated {result.get('updated', 0)} books in Calibre."
+        updated = result.get('updated', 0)
+        unmatched = result.get('unmatched', 0)
+        missing = result.get('missing', 0)
+        covers = result.get('covers', 0)
 
-        if result.get('unmatched'):
+        if updated == 0:
+            message = 'Nothing needed changing in Calibre.'
+        else:
+            message = f'Updated {_books(updated)} in Calibre.'
+
+        if unmatched == 1:
             message += (
-                f"\n\n{result['unmatched']} books are waiting for you on Seekquel: it could "
-                'not work out which book they are. Open Settings, Integrations, '
-                'Calibre on Seekquel to sort them out.'
+                '\n\nOne book is waiting for you on Seekquel: it could not work out which '
+                'book it is. Open Settings, Integrations, Calibre on Seekquel to sort it out.'
+            )
+        elif unmatched:
+            message += (
+                f'\n\n{unmatched} books are waiting for you on Seekquel: it could not work '
+                'out which books they are. Open Settings, Integrations, Calibre on Seekquel '
+                'to sort them out.'
             )
 
-        if result.get('missing'):
-            message += f"\n\n{result['missing']} books Seekquel knows about are not in this library."
+        if missing == 1:
+            message += '\n\nOne book Seekquel knows about is not in this library.'
+        elif missing:
+            message += f'\n\n{missing} books Seekquel knows about are not in this library.'
 
-        if result.get('covers'):
-            message += f"\n\nSent {result['covers']} covers for books Seekquel had none for."
+        if covers == 1:
+            message += '\n\nSent one cover, for a book Seekquel had none for.'
+        elif covers:
+            message += f'\n\nSent {covers} covers, for books Seekquel had none for.'
 
         self._refresh_books(result.get('book_ids') or ())
         info_dialog(self.gui, 'Up to date', message, show=True)

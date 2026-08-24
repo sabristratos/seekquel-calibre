@@ -31,6 +31,8 @@ COLUMN_FIELDS = [
     ('progress_column', 'Progress (%)', ('int', 'float')),
 ]
 
+MARK_SEPARATOR = '|'
+
 DEFAULTS = {
     'base_url': DEFAULT_BASE_URL,
     'key': '',
@@ -41,6 +43,8 @@ DEFAULTS = {
     'push_dates': True,
     'push_status': True,
     'push_covers': True,
+    'push_tags': False,
+    'max_tags_per_book': 0,
     'status_column': '',
     'rating_column': 'rating',
     'review_column': '',
@@ -72,12 +76,19 @@ def library_id(db):
 
 
 def pull_mark(db):
-    return (prefs.get('pull_marks') or {}).get(library_id(db)) or None
+    stored = (prefs.get('pull_marks') or {}).get(library_id(db)) or None
+
+    if not stored:
+        return None, None
+
+    at, _, mark_id = stored.partition(MARK_SEPARATOR)
+
+    return at or None, mark_id or None
 
 
-def set_pull_mark(db, value):
+def set_pull_mark(db, value, mark_id=None):
     marks = dict(prefs.get('pull_marks') or {})
-    marks[library_id(db)] = value
+    marks[library_id(db)] = f'{value}{MARK_SEPARATOR}{mark_id}' if mark_id else value
     prefs['pull_marks'] = marks
     prefs.commit()
 
@@ -143,6 +154,11 @@ class ConfigWidget(QWidget):
             'Covers, for books Seekquel has none for',
             sending_layout,
         )
+        self.push_tags = self._checkbox(
+            'push_tags',
+            'Tags, as your own tags in Seekquel',
+            sending_layout,
+        )
         layout.addWidget(sending)
 
         layout.addStretch(1)
@@ -162,6 +178,7 @@ class ConfigWidget(QWidget):
         prefs['push_reviews'] = self.push_reviews.isChecked()
         prefs['push_dates'] = self.push_dates.isChecked()
         prefs['push_covers'] = self.push_covers.isChecked()
+        prefs['push_tags'] = self.push_tags.isChecked()
         prefs.commit()
 
     def _wrap(self, layout):
