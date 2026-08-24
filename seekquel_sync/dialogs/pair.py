@@ -1,4 +1,6 @@
 import contextlib
+import queue
+from threading import Thread
 
 from calibre.gui2 import error_dialog
 from calibre_plugins.seekquel_sync import __version__
@@ -21,7 +23,11 @@ from qt.core import (
 )
 
 POLL_INTERVAL_MS = 3000
+DRAIN_INTERVAL_MS = 150
 PENDING_CODES = ('AUTHORIZATION_PENDING', 'SLOW_DOWN')
+
+START = 'start'
+POLL = 'poll'
 
 
 class PairDialog(QDialog):
@@ -30,6 +36,8 @@ class PairDialog(QDialog):
         self.gui = gui
         self.device_code = None
         self.timer = None
+        self.polling = False
+        self.answers = queue.Queue()
 
         self.setWindowTitle('Connect to Seekquel')
         self.resize(460, 280)
@@ -71,6 +79,10 @@ class PairDialog(QDialog):
         self.buttons.rejected.connect(self.reject)
         layout.addWidget(self.buttons)
 
+        self.drain = QTimer(self)
+        self.drain.timeout.connect(self._drain)
+        self.drain.start(DRAIN_INTERVAL_MS)
+
     def start(self):
         base_url = self.base_url.text().strip().rstrip('/')
 
@@ -86,18 +98,57 @@ class PairDialog(QDialog):
         self.start_button.setEnabled(False)
         self.state.setText('Asking Seekquel for a code...')
 
-        try:
-            answer = self._api().start_pairing(self._library_name(), 'calibre')
-        except SeekquelUnreachable as error:
+        name = self._library_name()
+        client = self._api()
+
+        self._in_background(START, lambda: client.start_pairing(name, 'calibre'))
+
+    def poll(self):
+        if not self.device_code or self.polling:
+            return
+
+        self.polling = True
+        code = self.device_code
+        client = self._api()
+
+        self._in_background(POLL, lambda: client.poll_pairing(code))
+
+    def _in_background(self, kind, call):
+        answers = self.answers
+
+        def run():
+            try:
+                answers.put((kind, call(), None))
+            except Exception as error:
+                answers.put((kind, None, error))
+
+        Thread(target=run, daemon=True).start()
+
+    def _drain(self):
+        while True:
+            try:
+                kind, answer, error = self.answers.get_nowait()
+            except queue.Empty:
+                return
+
+            if kind == START:
+                self._started(answer, error)
+            else:
+                self.polling = False
+                self._polled(answer, error)
+
+    def _started(self, answer, error):
+        if isinstance(error, SeekquelUnreachable):
             self._fail(f'Could not reach Seekquel.\n\n{error}')
 
             return
-        except SeekquelError as error:
+
+        if error is not None:
             self._fail(str(error))
 
             return
 
-        note(f'Pairing started against {base_url}')
+        note(f"Pairing started against {prefs.get('base_url')}")
         self.device_code = answer.get('device_code')
         self.code.setText(answer.get('user_code') or '')
         self.state.setText('Waiting for you to approve it in Seekquel...')
@@ -106,18 +157,19 @@ class PairDialog(QDialog):
         self.timer.timeout.connect(self.poll)
         self.timer.start(max(POLL_INTERVAL_MS, int(answer.get('interval') or 0) * 1000))
 
-    def poll(self):
-        if not self.device_code:
+    def _polled(self, answer, error):
+        if isinstance(error, SeekquelUnreachable):
             return
 
-        try:
-            answer = self._api().poll_pairing(self.device_code)
-        except SeekquelUnreachable:
-            return
-        except SeekquelError as error:
+        if isinstance(error, SeekquelError):
             if error.code in PENDING_CODES:
                 return
 
+            self._fail(str(error))
+
+            return
+
+        if error is not None:
             self._fail(str(error))
 
             return
@@ -148,8 +200,14 @@ class PairDialog(QDialog):
         self.accept()
 
     def _report_install(self):
-        with contextlib.suppress(SeekquelError, SeekquelUnreachable):
-            self._api().report_device(self._library_name(), 'calibre', __version__)
+        name = self._library_name()
+        client = self._api()
+
+        def run():
+            with contextlib.suppress(SeekquelError, SeekquelUnreachable):
+                client.report_device(name, 'calibre', __version__)
+
+        Thread(target=run, daemon=True).start()
 
     def _fail(self, message):
         note(f'Pairing failed: {message}')
@@ -161,13 +219,21 @@ class PairDialog(QDialog):
         self.start_button.setText('Try again')
 
     def _stop_timer(self):
+        self.polling = False
+
         if self.timer is not None:
             self.timer.stop()
             self.timer = None
 
     def reject(self):
         self._stop_timer()
+        self.drain.stop()
         QDialog.reject(self)
+
+    def accept(self):
+        self._stop_timer()
+        self.drain.stop()
+        QDialog.accept(self)
 
     def _api(self):
         return SeekquelApi(prefs.get('base_url'), prefs.get('key'))

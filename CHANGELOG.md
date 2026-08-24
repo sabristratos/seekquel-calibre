@@ -4,6 +4,18 @@ All notable changes to this project are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.2] - 2026-08-24
+
+### Fixed
+
+- **Calibre no longer freezes while connecting.** Every step of the connect exchange ran
+  where Calibre draws, so the window stopped repainting for as long as the server took to
+  answer. Measured against a local server that answers in two seconds, against a check that
+  repeats every three, the window was frozen for most of the exchange, and a server that
+  never answered would have held it for thirty seconds. Windows records that as the program
+  hanging and it reads as a crash. The requests happen out of the way now: measured over
+  the same exchange the window pauses for less than a tenth of a second.
+
 ## [1.2.1] - 2026-08-24
 
 ### Fixed
@@ -112,6 +124,7 @@ First release.
   cannot know when you read those pages, and crediting them to today would bill an
   afternoon for a book you finished months ago.
 
+[1.2.2]: https://github.com/sabristratos/seekquel-calibre/releases/tag/v1.2.2
 [1.2.1]: https://github.com/sabristratos/seekquel-calibre/releases/tag/v1.2.1
 [1.2.0]: https://github.com/sabristratos/seekquel-calibre/releases/tag/v1.2.0
 [1.1.0]: https://github.com/sabristratos/seekquel-calibre/releases/tag/v1.1.0
