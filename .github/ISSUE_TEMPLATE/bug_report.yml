@@ -1,0 +1,78 @@
+name: Bug report
+description: Something the plugin does wrong against a real library
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please redact your device key if it appears anywhere. It is 16 characters and
+        looks like `K9QPF26MXABDRFWR`.
+
+  - type: input
+    id: calibre
+    attributes:
+      label: Calibre version
+      description: From Preferences, About
+      placeholder: 8.14.0
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: Windows 11, macOS 15, Ubuntu 24.04
+    validations:
+      required: true
+
+  - type: input
+    id: plugin
+    attributes:
+      label: Plugin version
+      placeholder: 1.0.0
+    validations:
+      required: true
+
+  - type: input
+    id: size
+    attributes:
+      label: How many books are in the library
+      placeholder: About 1,200
+    validations:
+      required: false
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected to happen
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Seekquel, Settings, mapped Status to #my_status
+        2. Seekquel, Send my whole library
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: log
+    attributes:
+      label: Job details
+      description: >
+        If a sync failed, open Calibre's job list, double-click the failed job and paste
+        what it says. Redact your device key.
+      render: text
+    validations:
+      required: false

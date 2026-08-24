@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Check the tag matches the version in the plugin
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          declared=$(grep -oP "^__version__ = '\K[^']+" seekquel_sync/__init__.py)
+          if [ "$tag" != "$declared" ]; then
+            echo "Tag $tag does not match __version__ $declared in seekquel_sync/__init__.py"
+            exit 1
+          fi
+
+      - name: Build the plugin
+        run: python build.py
+
+      - name: Name the archive after the release
+        run: mv "dist/Seekquel Sync.zip" "seekquel-sync-${GITHUB_REF_NAME}.zip"
+
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: seekquel-sync-${{ github.ref_name }}.zip
+          generate_release_notes: true
