@@ -4,6 +4,16 @@ All notable changes to this project are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-08-24
+
+### Fixed
+
+- **The Seekquel button now appears in the toolbar on its own.** Calibre does not add a
+  newly installed plugin to the toolbar, so after installing 1.0.0 and restarting there
+  was nothing to click and no indication anything had been installed. The plugin now puts
+  itself there the first time it runs. It does this once: if you move it or take it off
+  the toolbar, it stays as you left it.
+
 ## [1.0.0] - 2026-08-24
 
 First release.
@@ -43,4 +53,5 @@ First release.
   cannot know when you read those pages, and crediting them to today would bill an
   afternoon for a book you finished months ago.
 
+[1.0.1]: https://github.com/sabristratos/seekquel-calibre/releases/tag/v1.0.1
 [1.0.0]: https://github.com/sabristratos/seekquel-calibre/releases/tag/v1.0.0

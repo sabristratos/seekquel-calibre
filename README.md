@@ -12,7 +12,9 @@ Works with Calibre 6 and later on Windows, macOS and Linux.
 2. In Calibre, open **Preferences > Plugins > Load plugin from file** and pick it.
 3. Restart Calibre.
 
-A **Seekquel** button appears in the toolbar.
+A **Seekquel** button appears in the toolbar. If you ever remove it, Calibre puts it back
+under **Preferences > Toolbars & menus > The main toolbar**; the plugin will not add it
+again by itself.
 
 You need a Seekquel account. The plugin is useless without one.
 

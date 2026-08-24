@@ -1,13 +1,15 @@
-from calibre.gui2 import error_dialog, info_dialog, open_url, question_dialog
+from calibre.gui2 import error_dialog, gprefs, info_dialog, open_url, question_dialog
 from calibre.gui2.actions import InterfaceAction
 from calibre.gui2.threaded_jobs import ThreadedJob
 from calibre_plugins.seekquel_sync import __version__
 from calibre_plugins.seekquel_sync.api import SeekquelError, SeekquelUnreachable
-from calibre_plugins.seekquel_sync.config import forget_connection, is_connected
+from calibre_plugins.seekquel_sync.config import forget_connection, is_connected, prefs
 from calibre_plugins.seekquel_sync.sync import pull_library, push_library
 from qt.core import QMenu, QToolButton, QUrl
 
 WEB_URL = 'https://seekquel.app'
+
+TOOLBAR_KEY = 'action-layout-toolbar'
 
 
 class SeekquelSyncAction(InterfaceAction):
@@ -21,6 +23,30 @@ class SeekquelSyncAction(InterfaceAction):
         self.qaction.setMenu(self.menu)
         self.menu.aboutToShow.connect(self.rebuild_menu)
         self.rebuild_menu()
+
+    def initialization_complete(self):
+        self.place_on_toolbar()
+
+    def place_on_toolbar(self):
+        if prefs.get('toolbar_placed'):
+            return
+
+        prefs['toolbar_placed'] = True
+        prefs.commit()
+
+        layout = list(gprefs.get(TOOLBAR_KEY) or ())
+
+        if self.name in layout:
+            return
+
+        gprefs[TOOLBAR_KEY] = (*layout, self.name)
+
+        try:
+            self.gui.bars_manager.init_bars()
+            self.gui.bars_manager.update_bars()
+            self.gui.bars_manager.apply_settings()
+        except Exception:
+            pass
 
     def rebuild_menu(self):
         self.menu.clear()
