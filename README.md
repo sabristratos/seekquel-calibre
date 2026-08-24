@@ -116,8 +116,12 @@ By ISBN first, and by title and author after that. Downloading metadata in Calib
 the first sync is the single most useful thing you can do: an ISBN matches outright, where
 a title has to clear a much higher bar to be accepted.
 
-Nothing is sent to any third party. Books are matched against the Seekquel catalogue and
-nowhere else.
+Your library is matched against the Seekquel catalogue first. A book the catalogue cannot
+place is looked up in the same book sources the catalogue itself is built from, by ISBN
+where you have one and by title and author otherwise, and an answer is kept only when it
+corroborates both. That lookup is bounded per sync and per day, and it is the only point
+at which anything about your books leaves Seekquel. Nothing else is sent anywhere, and no
+reading data, rating or review is ever part of it.
 
 ## Building from source
 
