@@ -4,6 +4,20 @@ All notable changes to this project are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.1] - 2026-08-25
+
+### Fixed
+
+- **The plugin no longer puts itself in the main toolbar.** On first run it added itself to
+  the main toolbar whatever you had chosen at install time, so anyone who deliberately put
+  it on the optional toolbar, or nowhere, got it in both places. Calibre already asks where
+  you want a new plugin, and that answer is now the only one that counts. It never touches
+  your toolbar layout again. An entry an earlier version added stays where it is; remove it
+  under Preferences, Toolbars and menus, and it stays removed.
+- **The toolbar button is labelled "Seekquel Sync".** It said "Seekquel", which is one word,
+  so it could not wrap onto two lines for anyone running with icons turned off and two-line
+  text under buttons.
+
 ## [1.4.0] - 2026-08-25
 
 ### Added
