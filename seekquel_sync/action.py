@@ -6,7 +6,8 @@ from calibre_plugins.seekquel_sync import __version__
 from calibre_plugins.seekquel_sync.api import SeekquelError, SeekquelUnreachable
 from calibre_plugins.seekquel_sync.config import forget_connection, is_connected, prefs
 from calibre_plugins.seekquel_sync.log import log_path, read_log
-from calibre_plugins.seekquel_sync.sync import pull_library, push_library
+from calibre_plugins.seekquel_sync.scope import ScopeUnavailable, books_in_scope, scope_name
+from calibre_plugins.seekquel_sync.sync import preview_sync, pull_library, push_library
 from qt.core import QMenu, QToolButton, QUrl
 
 WEB_URL = 'https://seekquel.app'
@@ -14,6 +15,16 @@ WEB_URL = 'https://seekquel.app'
 ICON_PATH = 'images/seekquel.png'
 
 TOOLBAR_KEY = 'action-layout-toolbar'
+
+SENDING_LABELS = (
+    ('status', 'status'),
+    ('rating', 'a rating'),
+    ('review', 'a review'),
+    ('started_at', 'a start date'),
+    ('finished_at', 'a finish date'),
+    ('progress_percent', 'progress'),
+    ('tags', 'tags'),
+)
 
 
 def _books(count):
@@ -68,7 +79,9 @@ class SeekquelSyncAction(InterfaceAction):
 
             return
 
-        self.menu.addAction('Send my whole library').triggered.connect(self.push_all)
+        self.menu.addAction('Preview a sync...').triggered.connect(self.preview)
+        self.menu.addSeparator()
+        self.menu.addAction(self._send_all_label()).triggered.connect(self.push_all)
         self.menu.addAction('Send the selected books').triggered.connect(self.push_selected)
         self.menu.addSeparator()
         self.menu.addAction('Bring Seekquel up to date here').triggered.connect(self.pull)
@@ -93,9 +106,11 @@ class SeekquelSyncAction(InterfaceAction):
                 self.gui,
                 'Connected',
                 'This library is connected to Seekquel.\n\n'
-                'Next, open Settings and choose which of your columns Seekquel should read and write.',
+                'Nothing is mapped yet. Choose which of your own columns Seekquel should read '
+                'and write, and which books to send. Settings opens next.',
                 show=True,
             )
+            self.show_configuration()
 
     def disconnect(self):
         if not question_dialog(self.gui, 'Disconnect', 'Stop syncing this library with Seekquel?'):
@@ -105,7 +120,12 @@ class SeekquelSyncAction(InterfaceAction):
         self.rebuild_menu()
 
     def push_all(self):
-        self._push(list(self.gui.current_db.new_api.all_book_ids()))
+        book_ids = self._books_to_send()
+
+        if book_ids is None:
+            return
+
+        self._push(book_ids)
 
     def push_selected(self):
         book_ids = self._selected_book_ids()
@@ -116,6 +136,26 @@ class SeekquelSyncAction(InterfaceAction):
             return
 
         self._push(book_ids)
+
+    def preview(self):
+        book_ids = self._books_to_send()
+
+        if book_ids is None:
+            return
+
+        db = self.gui.current_db.new_api
+
+        job = ThreadedJob(
+            'seekquel-preview',
+            'Working out what a sync would change',
+            self._run_preview,
+            (db, book_ids),
+            {},
+            Dispatcher(self._preview_finished),
+            max_concurrent_count=1,
+            killable=True,
+        )
+        self.gui.job_manager.run_threaded_job(job)
 
     def pull(self):
         db = self.gui.current_db.new_api
@@ -181,6 +221,45 @@ class SeekquelSyncAction(InterfaceAction):
         dialog = ViewLog('Seekquel log', f'<pre>{prepare_string_for_xml(text)}</pre>', parent=self.gui)
         dialog.exec()
 
+    def _send_all_label(self):
+        name = scope_name()
+
+        if name is None:
+            return 'Send my whole library'
+
+        return f'Send the books I sync ({name})'
+
+    def _books_to_send(self):
+        try:
+            book_ids = books_in_scope(self.gui.current_db.new_api)
+        except ScopeUnavailable as error:
+            error_dialog(
+                self.gui,
+                'Nothing was sent',
+                f'{error}\n\nOpen Settings, What to send, and choose which books to send.',
+                show=True,
+            )
+
+            return None
+
+        if book_ids:
+            return book_ids
+
+        name = scope_name()
+
+        if name is None:
+            error_dialog(self.gui, 'Nothing to send', 'This library has no books in it.', show=True)
+        else:
+            error_dialog(
+                self.gui,
+                'Nothing to send',
+                f'Nothing in this library matches "{name}".\n\n'
+                'Open Settings, What to send, to change which books are sent.',
+                show=True,
+            )
+
+        return None
+
     def _push(self, book_ids):
         if not book_ids:
             error_dialog(self.gui, 'Nothing to send', 'This library has no books in it.', show=True)
@@ -207,6 +286,9 @@ class SeekquelSyncAction(InterfaceAction):
     def _run_pull(self, db, notifications=None, abort=None, log=None):
         return pull_library(db, notifications=notifications, log=log, abort=abort)
 
+    def _run_preview(self, db, book_ids, notifications=None, abort=None, log=None):
+        return preview_sync(db, book_ids, notifications=notifications, log=log, abort=abort)
+
     def _push_finished(self, job):
         if job.failed:
             self._report_failure(job, 'Could not send your library')
@@ -216,6 +298,11 @@ class SeekquelSyncAction(InterfaceAction):
         result = job.result or {}
         skipped = result.get('skipped', 0)
         message = f"Seekquel took {result.get('accepted', 0)} of {_books(result.get('total', 0))}."
+
+        name = scope_name()
+
+        if name is not None:
+            message += f'\n\nThose are the books matching "{name}", which is what Settings says to send.'
 
         if skipped == 1:
             message += '\n\nOne was skipped because Calibre has no id for it yet.'
@@ -228,6 +315,87 @@ class SeekquelSyncAction(InterfaceAction):
         )
 
         info_dialog(self.gui, 'Sent to Seekquel', message, show=True)
+
+    def _preview_finished(self, job):
+        if job.failed:
+            self._report_failure(job, 'Could not work out what a sync would change')
+
+            return
+
+        result = job.result or {}
+        sending = result.get('sending') or {}
+        receiving = result.get('receiving') or {}
+
+        lines = ['Nothing has been changed.', '']
+        lines.extend(self._sending_lines(sending))
+        lines.append('')
+        lines.extend(self._receiving_lines(receiving))
+
+        sample = receiving.get('sample') or []
+        details = '\n'.join(sample) if sample else None
+
+        if sample and receiving.get('changed', 0) > len(sample):
+            details += f'\n\n...and {receiving["changed"] - len(sample)} more.'
+
+        info_dialog(
+            self.gui,
+            'What a sync would do',
+            '\n'.join(lines),
+            det_msg=details,
+            show=True,
+        )
+
+    def _sending_lines(self, sending):
+        name = scope_name()
+        where = 'your whole library' if name is None else f'"{name}"'
+        lines = [f'Sending {_books(sending.get("sending", 0))}, from {where}.']
+
+        carried = [
+            f'{label} on {sending["fields"][key]}'
+            for key, label in SENDING_LABELS
+            if (sending.get('fields') or {}).get(key)
+        ]
+
+        if carried:
+            lines.append('Carrying ' + ', '.join(carried) + '.')
+
+        unidentified = sending.get('unidentified', 0)
+
+        if unidentified:
+            lines.append(
+                f'{unidentified} carry no ISBN, so Seekquel has to match them on title and author.'
+            )
+
+        skipped = sending.get('skipped', 0)
+
+        if skipped:
+            lines.append(f'{skipped} would be skipped because Calibre has no id for them yet.')
+
+        return lines
+
+    def _receiving_lines(self, receiving):
+        changed = receiving.get('changed', 0)
+
+        if changed == 0:
+            lines = ['Nothing would change in Calibre.']
+        else:
+            lines = [f'{_books(changed)} would change in Calibre.']
+            columns = receiving.get('columns') or {}
+            lines.append('Columns touched: ' + ', '.join(
+                f'{column} ({count})' for column, count in sorted(columns.items())
+            ) + '.')
+
+        unmatched = receiving.get('unmatched', 0)
+
+        if unmatched:
+            lines.append(f'{_books(unmatched)} are waiting for you on Seekquel.')
+
+        covers = receiving.get('covers', 0)
+
+        if covers:
+            lines.append(f'Up to {covers} covers would be sent, for books Seekquel has none for.')
+
+        return lines
 
     def _pull_finished(self, job):
         if job.failed:

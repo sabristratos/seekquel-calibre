@@ -8,6 +8,7 @@ from qt.core import (
     QLabel,
     QLineEdit,
     QPushButton,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -31,6 +32,13 @@ COLUMN_FIELDS = [
     ('progress_column', 'Progress (%)', ('int', 'float')),
 ]
 
+SCOPE_ALL = 'all'
+SCOPE_VIRTUAL_LIBRARY = 'virtual_library'
+SCOPE_SAVED_SEARCH = 'saved_search'
+SCOPE_SEARCH = 'search'
+
+SCOPE_SEPARATOR = ':'
+LABEL_SEPARATOR = ','
 MARK_SEPARATOR = '|'
 
 DEFAULTS = {
@@ -45,8 +53,11 @@ DEFAULTS = {
     'push_covers': True,
     'push_tags': False,
     'max_tags_per_book': 0,
+    'send_scope': SCOPE_ALL,
+    'send_scope_value': '',
+    'status_labels': {},
     'status_column': '',
-    'rating_column': 'rating',
+    'rating_column': '',
     'review_column': '',
     'started_column': '',
     'finished_column': '',
@@ -103,8 +114,50 @@ class ConfigWidget(QWidget):
     def __init__(self):
         QWidget.__init__(self)
         self.column_boxes = {}
+        self.label_edits = {}
 
         layout = QVBoxLayout(self)
+        tabs = QTabWidget(self)
+        tabs.addTab(self._connection_tab(), 'Connection')
+        tabs.addTab(self._columns_tab(), 'Columns')
+        tabs.addTab(self._sending_tab(), 'What to send')
+        layout.addWidget(tabs)
+
+    @property
+    def widget(self):
+        return self
+
+    def save_settings(self):
+        prefs['base_url'] = self.base_url.text().strip().rstrip('/')
+
+        for key in self.column_boxes:
+            prefs[key] = self.column_boxes[key].currentData() or ''
+
+        kind, _, value = (self.scope_box.currentData() or '').partition(SCOPE_SEPARATOR)
+
+        if kind == SCOPE_SEARCH:
+            value = self.scope_search.text().strip()
+
+        prefs['send_scope'] = kind or SCOPE_ALL
+        prefs['send_scope_value'] = value
+
+        prefs['status_labels'] = {
+            status: self.label_edits[status].text().strip()
+            for status in self.label_edits
+            if self.label_edits[status].text().strip()
+        }
+
+        prefs['push_status'] = self.push_status.isChecked()
+        prefs['push_ratings'] = self.push_ratings.isChecked()
+        prefs['push_reviews'] = self.push_reviews.isChecked()
+        prefs['push_dates'] = self.push_dates.isChecked()
+        prefs['push_covers'] = self.push_covers.isChecked()
+        prefs['push_tags'] = self.push_tags.isChecked()
+        prefs.commit()
+
+    def _connection_tab(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
 
         connection = QGroupBox('Connection')
         connection_form = QFormLayout(connection)
@@ -127,6 +180,13 @@ class ConfigWidget(QWidget):
 
         connection_form.addRow('Status', self._wrap(row))
         layout.addWidget(connection)
+        layout.addStretch(1)
+
+        return page
+
+    def _columns_tab(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
 
         columns = QGroupBox('Columns')
         columns_form = QFormLayout(columns)
@@ -142,6 +202,49 @@ class ConfigWidget(QWidget):
             columns_form.addRow(label, box)
 
         layout.addWidget(columns)
+
+        labels = QGroupBox('Status labels')
+        labels_form = QFormLayout(labels)
+        labels_form.addRow(QLabel(
+            'What your own status column calls each one. Leave a row blank to use ours.\n'
+            'Separate several with commas; the first is the one Seekquel writes back.'
+        ))
+
+        stored = prefs.get('status_labels') or {}
+
+        for status, label in STATUS_VALUES:
+            edit = QLineEdit(str(stored.get(status) or ''))
+            edit.setPlaceholderText(label)
+            self.label_edits[status] = edit
+            labels_form.addRow(label, edit)
+
+        layout.addWidget(labels)
+        layout.addStretch(1)
+
+        return page
+
+    def _sending_tab(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+
+        books = QGroupBox('Books to send')
+        books_form = QFormLayout(books)
+        books_form.addRow(QLabel(
+            'A library holds manuals and papers as well as books. Point Seekquel at a\n'
+            'virtual library or a saved search and it sends only those.\n'
+            'Sending books you have selected ignores this and sends exactly those.'
+        ))
+
+        self.scope_box = QComboBox()
+        self._fill_scope_box()
+        self.scope_box.currentIndexChanged.connect(self._scope_changed)
+        books_form.addRow('Send', self.scope_box)
+
+        self.scope_search = QLineEdit(self._stored_search())
+        self.scope_search.setPlaceholderText('tags:"=fiction" not tags:"=manual"')
+        books_form.addRow('Search', self.scope_search)
+
+        layout.addWidget(books)
 
         sending = QGroupBox('What to send')
         sending_layout = QVBoxLayout(sending)
@@ -160,26 +263,11 @@ class ConfigWidget(QWidget):
             sending_layout,
         )
         layout.addWidget(sending)
-
         layout.addStretch(1)
 
-    @property
-    def widget(self):
-        return self
+        self._scope_changed()
 
-    def save_settings(self):
-        prefs['base_url'] = self.base_url.text().strip().rstrip('/')
-
-        for key in self.column_boxes:
-            prefs[key] = self.column_boxes[key].currentData() or ''
-
-        prefs['push_status'] = self.push_status.isChecked()
-        prefs['push_ratings'] = self.push_ratings.isChecked()
-        prefs['push_reviews'] = self.push_reviews.isChecked()
-        prefs['push_dates'] = self.push_dates.isChecked()
-        prefs['push_covers'] = self.push_covers.isChecked()
-        prefs['push_tags'] = self.push_tags.isChecked()
-        prefs.commit()
+        return page
 
     def _wrap(self, layout):
         holder = QWidget()
@@ -213,6 +301,56 @@ class ConfigWidget(QWidget):
         stored = prefs.get(key) or ''
         index = box.findData(stored)
         box.setCurrentIndex(max(index, 0))
+
+    def _fill_scope_box(self):
+        from calibre_plugins.seekquel_sync.scope import saved_searches, virtual_libraries
+
+        db = self._db()
+        self.scope_box.addItem('All the books in this library', SCOPE_ALL + SCOPE_SEPARATOR)
+
+        if db is not None:
+            for name in sorted(virtual_libraries(db)):
+                self.scope_box.addItem(
+                    f'Virtual library: {name}',
+                    SCOPE_VIRTUAL_LIBRARY + SCOPE_SEPARATOR + name,
+                )
+
+            for name in sorted(saved_searches(db)):
+                self.scope_box.addItem(
+                    f'Saved search: {name}',
+                    SCOPE_SAVED_SEARCH + SCOPE_SEPARATOR + name,
+                )
+
+        self.scope_box.addItem('A search of my own', SCOPE_SEARCH + SCOPE_SEPARATOR)
+        self._select_stored_scope()
+
+    def _select_stored_scope(self):
+        kind = prefs.get('send_scope') or SCOPE_ALL
+        value = (prefs.get('send_scope_value') or '').strip()
+        stored = kind + SCOPE_SEPARATOR + ('' if kind == SCOPE_SEARCH else value)
+        index = self.scope_box.findData(stored)
+
+        if index < 0 and kind not in (SCOPE_ALL, SCOPE_SEARCH) and value:
+            self.scope_box.addItem(f'{value} (no longer in this library)', stored)
+            index = self.scope_box.count() - 1
+
+        self.scope_box.setCurrentIndex(max(index, 0))
+
+    def _stored_search(self):
+        if (prefs.get('send_scope') or SCOPE_ALL) != SCOPE_SEARCH:
+            return ''
+
+        return prefs.get('send_scope_value') or ''
+
+    def _scope_changed(self):
+        kind, _, _value = (self.scope_box.currentData() or '').partition(SCOPE_SEPARATOR)
+        self.scope_search.setEnabled(kind == SCOPE_SEARCH)
+
+    def _db(self):
+        gui = _gui()
+        database = getattr(gui, 'current_db', None)
+
+        return None if database is None else database.new_api
 
     def _custom_columns(self):
         db = getattr(_gui(), 'current_db', None)

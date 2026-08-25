@@ -27,9 +27,11 @@ seekquel_sync/         the plugin itself
   api.py               every HTTP call
   columns.py           reading the reader's columns and writing back into them
   config.py            stored settings and the preferences dialog
+  scope.py             which books a sync sends
   sync.py              the two directions a library moves in
   dialogs/pair.py      the pairing dialog
 build.py               writes dist/Seekquel Sync.zip
+scripts/check_imports.py  refuses module-scope imports of Calibre internals
 ```
 
 ## Building and installing
@@ -63,8 +65,10 @@ hand-made zip usually does not.
 - Never clear a value the reader typed. A field the server does not answer with is left
   alone rather than blanked.
 
-Run `ruff check .` before opening a pull request. CI runs it, and byte-compiles every
-module.
+Run `ruff check .` and `python scripts/check_imports.py` before opening a pull request.
+CI runs both, and byte-compiles every module. The second one exists because 1.1.0 imported
+`calibre.gui2.ui` at module scope, which leaves that module half-built and crashes Calibre
+later, in a screen with nothing to do with this plugin.
 
 ## Testing
 
@@ -93,9 +97,16 @@ print(push_library(database, sorted(database.all_book_ids())))
 print(pull_library(database))
 ```
 
-Use a scratch library, never your own. `calibredb --with-library <path> add -e -t Title
--a Author -I "isbn:9780441013593"` builds one in a few seconds, and
-`calibredb add_custom_column` adds the columns to map.
+Use a scratch library, never your own, and point `CALIBRE_CONFIG_DIRECTORY` somewhere
+scratch as well, or the script writes over the settings and the device key of the Calibre
+you actually use.
+
+`calibredb --with-library <path> add -e -t Title -a Author -I "isbn:9780441013593"` builds
+one in a few seconds, and `calibredb add_custom_column` adds the columns to map. Both
+refuse to run while Calibre is open; inside `calibre-debug` the same work is
+`database.add_books`, `database.create_custom_column`, and `database.set_pref` for the
+`virtual_libraries` and `saved_searches` a scope test needs. Keep the library path short:
+Calibre refuses one longer than 89 characters.
 
 The Qt layer can be driven the same way by constructing `Application([])` first, then the
 dialog or widget you want to exercise. Doing that is how the pairing dialog and the

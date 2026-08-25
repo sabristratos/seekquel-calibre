@@ -1,11 +1,13 @@
 from calibre.ebooks.markdown import Markdown
 from calibre.utils.date import parse_date, utcnow
 from calibre.utils.html2text import html2text
-from calibre_plugins.seekquel_sync.config import STATUS_VALUES, prefs
+from calibre_plugins.seekquel_sync.config import LABEL_SEPARATOR, STATUS_VALUES, prefs
 
 CALIBRE_RATING_SCALE = 2.0
 MAX_TAGS = 250
 EARLIEST_PUBLICATION_YEAR = 1000
+
+IDENTIFIERS_COLUMN = 'identifiers'
 
 STATUS_LABELS = dict(STATUS_VALUES)
 STATUS_BY_LABEL = {label.lower(): value for value, label in STATUS_VALUES}
@@ -29,8 +31,35 @@ def max_tags():
     return published if published > 0 else MAX_TAGS
 
 
+def status_labels():
+    stored = prefs.get('status_labels') or {}
+    chosen = {}
+
+    for status, _label in STATUS_VALUES:
+        raw = stored.get(status)
+
+        if not isinstance(raw, str):
+            continue
+
+        names = [part.strip() for part in raw.split(LABEL_SEPARATOR) if part.strip()]
+
+        if names:
+            chosen[status] = names
+
+    return chosen
+
+
+def label_for(status):
+    names = status_labels().get(status)
+
+    if names:
+        return names[0]
+
+    return STATUS_LABELS.get(status, status)
+
+
 def read_book(db, book_id):
-    identifiers = db.field_for('identifiers', book_id) or {}
+    identifiers = db.field_for(IDENTIFIERS_COLUMN, book_id) or {}
 
     return {
         'uuid': db.field_for('uuid', book_id),
@@ -55,7 +84,7 @@ def read_metadata(db, book_id):
     if description:
         details['description'] = description
 
-    publisher = _column_value(db, book_id, 'publisher')
+    publisher = column_value(db, book_id, 'publisher')
 
     if isinstance(publisher, str) and publisher.strip():
         details['publisher'] = publisher.strip()
@@ -65,13 +94,13 @@ def read_metadata(db, book_id):
     if published:
         details['published_on'] = published
 
-    languages = _column_value(db, book_id, 'languages') or ()
+    languages = column_value(db, book_id, 'languages') or ()
 
     if languages:
         details['language'] = str(languages[0])[:16]
 
     if prefs.get('push_tags'):
-        tags = [str(tag) for tag in (_column_value(db, book_id, 'tags') or ()) if str(tag).strip()]
+        tags = [str(tag) for tag in (column_value(db, book_id, 'tags') or ()) if str(tag).strip()]
 
         if tags:
             details['tags'] = tags[:max_tags()]
@@ -80,7 +109,7 @@ def read_metadata(db, book_id):
 
 
 def _read_comments(db, book_id):
-    value = _column_value(db, book_id, 'comments')
+    value = column_value(db, book_id, 'comments')
 
     if not isinstance(value, str) or not value.strip():
         return None
@@ -92,7 +121,7 @@ def _read_comments(db, book_id):
 
 
 def _read_published_on(db, book_id):
-    value = _column_value(db, book_id, 'pubdate')
+    value = column_value(db, book_id, 'pubdate')
 
     if value is None:
         return None
@@ -113,7 +142,7 @@ def read_state(db, book_id):
     state = {}
 
     if prefs.get('push_status'):
-        status = _normalize_status(_column_value(db, book_id, prefs.get('status_column')))
+        status = _normalize_status(column_value(db, book_id, prefs.get('status_column')))
 
         if status:
             state['status'] = status
@@ -140,7 +169,7 @@ def read_state(db, book_id):
         if finished:
             state['finished_at'] = finished
 
-    progress = _column_value(db, book_id, prefs.get('progress_column'))
+    progress = column_value(db, book_id, prefs.get('progress_column'))
 
     if isinstance(progress, (int, float)) and 0 < progress <= 100:
         state['progress_percent'] = float(progress)
@@ -148,13 +177,13 @@ def read_state(db, book_id):
     return state
 
 
-def write_book(db, book_id, remote):
+def plan_book(db, book_id, remote):
     changes = {}
 
     status = remote.get('status')
 
     if status and prefs.get('status_column'):
-        changes[prefs['status_column']] = STATUS_LABELS.get(status, status)
+        changes[prefs['status_column']] = label_for(status)
 
     rating = remote.get('rating')
 
@@ -186,22 +215,57 @@ def write_book(db, book_id, remote):
     if progress is not None and prefs.get('progress_column'):
         changes[prefs['progress_column']] = _fit_progress(db, prefs['progress_column'], progress)
 
+    identifiers = _planned_identifiers(db, book_id, remote.get('url'))
+
+    if identifiers is not None:
+        changes[IDENTIFIERS_COLUMN] = identifiers
+
+    return {
+        column: value
+        for column, value in changes.items()
+        if column_value(db, book_id, column) != value
+    }
+
+
+def write_book(db, book_id, remote):
     written = set()
 
-    for column, value in changes.items():
+    for column, value in plan_book(db, book_id, remote).items():
         if _write_column(db, book_id, column, value):
             written.add(column)
-
-    if _write_identifier(db, book_id, remote.get('url')):
-        written.add('identifiers')
 
     return written
 
 
-def _write_column(db, book_id, column, value):
-    if _column_value(db, book_id, column) == value:
-        return False
+def describe(db, book_id, column, value):
+    if column == IDENTIFIERS_COLUMN:
+        return column_name(db, column)
 
+    return f'{column_name(db, column)}: {_shorten(column_value(db, book_id, column))} -> {_shorten(value)}'
+
+
+def column_name(db, column):
+    if column == IDENTIFIERS_COLUMN:
+        return 'the Seekquel link'
+
+    try:
+        meta = db.field_metadata.custom_field_metadata().get(column) or {}
+    except Exception:
+        meta = {}
+
+    return meta.get('name') or column
+
+
+def _shorten(value):
+    if value is None or value == '':
+        return '(nothing)'
+
+    text = ' '.join(str(value).split())
+
+    return text if len(text) <= 60 else text[:57] + '...'
+
+
+def _write_column(db, book_id, column, value):
     try:
         db.set_field(column, {book_id: value})
     except Exception:
@@ -210,31 +274,26 @@ def _write_column(db, book_id, column, value):
     return True
 
 
-def _write_identifier(db, book_id, url):
+def _planned_identifiers(db, book_id, url):
     if not url:
-        return False
+        return None
 
     slug = url.rstrip('/').rsplit('/', 1)[-1]
 
     if not slug:
-        return False
+        return None
 
-    identifiers = dict(db.field_for('identifiers', book_id) or {})
+    identifiers = dict(db.field_for(IDENTIFIERS_COLUMN, book_id) or {})
 
     if identifiers.get('seekquel') == slug:
-        return False
+        return None
 
     identifiers['seekquel'] = slug
 
-    try:
-        db.set_field('identifiers', {book_id: identifiers})
-    except Exception:
-        return False
-
-    return True
+    return identifiers
 
 
-def _column_value(db, book_id, column):
+def column_value(db, book_id, column):
     if not column:
         return None
 
@@ -245,7 +304,7 @@ def _column_value(db, book_id, column):
 
 
 def _read_review(db, book_id):
-    value = _column_value(db, book_id, prefs.get('review_column'))
+    value = column_value(db, book_id, prefs.get('review_column'))
 
     if not isinstance(value, str) or not value.strip():
         return None
@@ -265,7 +324,7 @@ def _to_html(review):
 
 def _read_rating(db, book_id):
     column = prefs.get('rating_column')
-    value = _column_value(db, book_id, column)
+    value = column_value(db, book_id, column)
 
     if not isinstance(value, (int, float)) or value <= 0:
         return None
@@ -274,7 +333,7 @@ def _read_rating(db, book_id):
 
 
 def _read_date(db, book_id, column):
-    value = _column_value(db, book_id, column)
+    value = column_value(db, book_id, column)
 
     if value is None:
         return None
@@ -318,6 +377,10 @@ def _normalize_status(value):
 
     if not candidate:
         return None
+
+    for status, names in status_labels().items():
+        if candidate in [name.lower() for name in names]:
+            return status
 
     if candidate in STATUS_LABELS:
         return candidate

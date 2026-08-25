@@ -32,3 +32,6 @@ jobs:
 
       - name: Byte-compile every module
         run: python -m compileall -q seekquel_sync build.py
+
+      - name: Refuse module-scope imports of Calibre internals
+        run: python scripts/check_imports.py

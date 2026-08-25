@@ -4,6 +4,42 @@ All notable changes to this project are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-08-25
+
+### Added
+
+- **Choose which books get sent.** A library holds manuals, rulebooks and conference papers
+  alongside novels, and until now all of it went, leaving you to set each one aside in the
+  app afterwards. Under Settings, What to send, point Seekquel at one of your virtual
+  libraries or saved searches, or type a search of your own, and it sends only those. The
+  menu says which set it is sending so you cannot forget you set it. Sending books you have
+  selected ignores this and sends exactly what you picked.
+- **A search that no longer exists stops the sync rather than widening it.** If you delete
+  the virtual library Seekquel was pointed at, the next send says so and does nothing.
+  Falling back to the whole library would send the manuals you set it up to avoid.
+- **Tell Seekquel what your own status column says.** Under Settings, Columns, there is now
+  a row per status where you write the words you actually use. It reads them and writes them
+  back, so a column holding "Leyendo" stays a column holding "Leyendo". Separate several
+  with commas and the first is the one Seekquel writes. Leave a row blank and the built-in
+  labels work as before.
+- **See what a sync would do before it does it.** Seekquel, Preview a sync, reads your
+  library and asks Seekquel what it would send back, then tells you how many books would
+  change, which columns they are, and shows the first forty as "was, becomes". Nothing is
+  sent and nothing is written. It leaves the place-marker where it was, so the real sync
+  afterwards still brings everything.
+
+### Changed
+
+- **Nothing is mapped until you map it, the rating included.** The rating was the one field
+  set up for you, pointed at Calibre's own star column before you had said so, which meant a
+  first sync could write a Seekquel rating over one you typed in a column you never chose.
+  Every field is now yours to pick, which is what the plugin claimed all along. If you were
+  relying on it, open Settings, Columns, and choose Calibre's own rating.
+- **Connecting takes you into Settings** rather than telling you to go there, since there is
+  nothing to sync until you have chosen your columns.
+- Settings is now three tabs, Connection, Columns and What to send, because it had grown
+  taller than some screens.
+
 ## [1.3.0] - 2026-08-24
 
 ### Added
@@ -159,6 +195,8 @@ First release.
   cannot know when you read those pages, and crediting them to today would bill an
   afternoon for a book you finished months ago.
 
+[1.4.0]: https://github.com/sabristratos/seekquel-calibre/releases/tag/v1.4.0
+[1.3.0]: https://github.com/sabristratos/seekquel-calibre/releases/tag/v1.3.0
 [1.2.3]: https://github.com/sabristratos/seekquel-calibre/releases/tag/v1.2.3
 [1.2.2]: https://github.com/sabristratos/seekquel-calibre/releases/tag/v1.2.2
 [1.2.1]: https://github.com/sabristratos/seekquel-calibre/releases/tag/v1.2.1

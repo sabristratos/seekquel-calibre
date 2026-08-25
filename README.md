@@ -32,8 +32,9 @@ that you can revoke from the same screen that lists your other devices.
 
 ## Choose your columns
 
-Open **Seekquel > Settings**. Every field is optional, and a column you leave unset is
-never read and never written.
+Open **Seekquel > Settings**, then **Columns**. Nothing is mapped to begin with. Every
+field is optional, and a column you leave unset is never read and never written, the rating
+included.
 
 | Field | Column type to create |
 | --- | --- |
@@ -48,7 +49,10 @@ Custom columns are made under **Preferences > Add your own columns**. Calibre as
 restart after adding one.
 
 Status labels are read loosely, so a column already holding `Read`, `Currently reading`,
-`TBR`, `On hold`, `DNF` or `Finished` works without being renamed first.
+`TBR`, `On hold`, `DNF` or `Finished` works without being renamed first. If yours says
+something else, write it in under **Status labels** on the same tab. Seekquel then reads
+that word and writes it back, so a column holding `Leyendo` stays a column holding
+`Leyendo`. Separate several with commas and the first is the one Seekquel writes.
 
 The switches under **What to send** control what leaves Calibre. Turning off Reviews
 keeps your reviews on your own machine; it does not stop Seekquel's reviews arriving.
@@ -58,6 +62,34 @@ ones it is missing and the plugin sends those and no others, up to twenty five p
 A cover for a book only you have is used straight away. One for a catalogue book with no
 cover at all is offered as a suggestion and waits for a reviewer, since a catalogue cover
 is seen by everybody. A book that already has a cover is left alone.
+
+## Choose which books get sent
+
+A library holds manuals, RPG rulebooks and conference papers alongside novels, and
+Seekquel refuses those correctly, which leaves you a list to set aside one at a time.
+Better not to send them.
+
+Under **Settings > What to send**, the **Send** box lists your virtual libraries and your
+saved searches. Pick one and only those books are sent. **A search of my own** takes a
+Calibre search expression, the same thing you would type into the search bar.
+
+The menu then names the set it is sending, so you cannot forget it is set. Selecting books
+and using **Send the selected books** ignores all of this and sends exactly what you
+picked.
+
+If the virtual library you chose is deleted, the next send stops and tells you. It does
+not quietly fall back to the whole library, which would send the manuals you set it up to
+avoid.
+
+## Preview
+
+**Seekquel > Preview a sync** reads your library, asks Seekquel what it would send back,
+and tells you what would happen: how many books would be sent and what they carry, how
+many books in Calibre would change, which columns, and the first forty of them written out
+as what they hold now and what they would hold.
+
+Nothing is sent and nothing is written, and it leaves the place-marker where it was, so
+the real sync afterwards still brings everything.
 
 ## Sync
 
