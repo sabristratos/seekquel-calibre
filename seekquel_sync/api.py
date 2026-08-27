@@ -11,6 +11,7 @@ from calibre_plugins.seekquel_sync import __version__
 from calibre_plugins.seekquel_sync.log import note
 
 USER_AGENT = f'Seekquel-Calibre/{__version__} (+https://seekquel.app)'
+EXTRA_ROOTS_PATH = Path(__file__).parent / 'certs' / 'seekquel-extra-roots.pem'
 
 CONNECT_TIMEOUT = 30
 UPLOAD_TIMEOUT = 60
@@ -169,7 +170,14 @@ class SeekquelApi:
         if self.base_url.startswith('http://'):
             return None
 
-        return ssl.create_default_context()
+        context = ssl.create_default_context()
+
+        try:
+            context.load_verify_locations(cafile=str(EXTRA_ROOTS_PATH))
+        except (FileNotFoundError, ssl.SSLError) as error:
+            note(f'Could not load supplemental root certificates: {error}')
+
+        return context
 
     def _from_http_error(self, error):
         try:
