@@ -4,6 +4,17 @@ All notable changes to this project are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.2] - 2026-08-28
+
+### Fixed
+
+- **Sync no longer fails with a certificate error on Calibre installs with a stale trust
+  store.** Some Calibre installs bundle a copy of the certifi root store that is missing or
+  out of date, which made those installs unable to verify Seekquel's certificate at all. The
+  plugin now also trusts a small supplemental root bundle it ships with, so sync works
+  whether or not Calibre's own copy is current. If that bundle can't be loaded for any
+  reason, sync falls back to the system trust store exactly as before rather than failing.
+
 ## [1.4.1] - 2026-08-25
 
 ### Fixed
