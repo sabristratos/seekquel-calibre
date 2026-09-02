@@ -3,9 +3,9 @@ from calibre.gui2 import Dispatcher, error_dialog, info_dialog, open_url, questi
 from calibre.gui2.actions import InterfaceAction
 from calibre.gui2.threaded_jobs import ThreadedJob
 from calibre_plugins.seekquel_sync import __version__
-from calibre_plugins.seekquel_sync.api import SeekquelError, SeekquelUnreachable
+from calibre_plugins.seekquel_sync.api import INVALID_KEY_CODE, SeekquelError, SeekquelUnreachable
 from calibre_plugins.seekquel_sync.config import forget_connection, is_connected
-from calibre_plugins.seekquel_sync.log import log_path, read_log
+from calibre_plugins.seekquel_sync.log import log_path, note, read_log
 from calibre_plugins.seekquel_sync.scope import ScopeUnavailable, books_in_scope, scope_name
 from calibre_plugins.seekquel_sync.sync import preview_sync, pull_library, push_library
 from qt.core import QMenu, QToolButton, QUrl
@@ -431,12 +431,26 @@ class SeekquelSyncAction(InterfaceAction):
         elif isinstance(error, SeekquelError):
             message = str(error)
 
-            if error.status == 401:
+            if error.code == INVALID_KEY_CODE:
+                self._drop_dead_connection()
+                message += (
+                    '\n\nThis library has been disconnected here. '
+                    'Connect it again from the Seekquel Sync menu.'
+                )
+            elif error.status == 401:
                 message += '\n\nReconnect this library from Settings.'
         else:
             message = 'Something went wrong. The job details have the whole story.'
 
         error_dialog(self.gui, title, message, det_msg=job.details, show=True)
+
+    def _drop_dead_connection(self):
+        if not is_connected():
+            return
+
+        note('Seekquel no longer recognises this key, forgetting it')
+        forget_connection()
+        self.rebuild_menu()
 
     def _selected_book_ids(self):
         rows = self.gui.library_view.selectionModel().selectedRows()

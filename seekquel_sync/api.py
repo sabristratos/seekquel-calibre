@@ -11,7 +11,9 @@ from calibre_plugins.seekquel_sync import __version__
 from calibre_plugins.seekquel_sync.log import note
 
 USER_AGENT = f'Seekquel-Calibre/{__version__} (+https://seekquel.app)'
-EXTRA_ROOTS_PATH = Path(__file__).parent / 'certs' / 'seekquel-extra-roots.pem'
+EXTRA_ROOTS_RESOURCE = 'certs/seekquel-extra-roots.pem'
+
+INVALID_KEY_CODE = 'INVALID_DEVICE_KEY'
 
 CONNECT_TIMEOUT = 30
 UPLOAD_TIMEOUT = 60
@@ -19,6 +21,33 @@ POLL_TIMEOUT = 10
 
 COVER_FIELD = 'cover'
 CRLF = '\r\n'
+
+_extra_roots = None
+
+
+def extra_roots():
+    global _extra_roots
+
+    if _extra_roots is None:
+        _extra_roots = _read_extra_roots()
+
+    return _extra_roots
+
+
+def _read_extra_roots():
+    try:
+        raw = get_resources(EXTRA_ROOTS_RESOURCE)
+    except Exception as error:
+        note(f'Could not read the supplemental root certificates: {error}')
+
+        return ''
+
+    if not raw:
+        note(f'The supplemental root certificates are missing from the plugin ({EXTRA_ROOTS_RESOURCE})')
+
+        return ''
+
+    return raw.decode('ascii') if isinstance(raw, bytes) else raw
 
 
 class SeekquelError(Exception):
@@ -171,11 +200,13 @@ class SeekquelApi:
             return None
 
         context = ssl.create_default_context()
+        roots = extra_roots()
 
-        try:
-            context.load_verify_locations(cafile=str(EXTRA_ROOTS_PATH))
-        except (FileNotFoundError, ssl.SSLError) as error:
-            note(f'Could not load supplemental root certificates: {error}')
+        if roots:
+            try:
+                context.load_verify_locations(cadata=roots)
+            except ssl.SSLError as error:
+                note(f'Could not load the supplemental root certificates: {error}')
 
         return context
 

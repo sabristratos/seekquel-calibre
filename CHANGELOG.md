@@ -4,6 +4,21 @@ All notable changes to this project are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.3] - 2026-09-02
+
+### Fixed
+
+- **The supplemental root certificates are actually loaded now.** 1.4.2 shipped a small root
+  bundle for installs whose own trust store is stale, but looked for it as a file on disk.
+  A Calibre plugin is a zip, and nothing inside it is a file on disk, so the bundle was never
+  read and every sync logged that it could not be loaded. It is read out of the plugin
+  itself now. Installs whose trust store is current were unaffected either way.
+- **A library Seekquel no longer recognises goes back to offering to connect.** Disconnecting
+  Calibre in Settings, Integrations on Seekquel left the menu here still offering to send
+  books, and every attempt failed with a message about an invalid key. The plugin now forgets
+  a key Seekquel has refused, so the menu offers to connect again, which is the state you are
+  actually in.
+
 ## [1.4.2] - 2026-08-28
 
 ### Fixed
