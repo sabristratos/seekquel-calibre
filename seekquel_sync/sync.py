@@ -1,4 +1,4 @@
-from calibre_plugins.seekquel_sync import __version__
+from calibre_plugins.seekquel_sync import __version__, diagnostics
 from calibre_plugins.seekquel_sync.api import (
     SeekquelApi,
     SeekquelError,
@@ -29,7 +29,25 @@ def api():
 
 def push_library(db, book_ids, notifications=None, log=None, abort=None):
     note(f'Push started: {len(book_ids)} books')
+
+    try:
+        return _push(db, book_ids, notifications, log, abort)
+    except Exception as error:
+        # Recorded here rather than at the caller because a failed sync is the one thing
+        # this integration could never see: it is why an install that stops syncing looks
+        # identical to one that has nothing to send. It is sent on the next attempt, so
+        # the record has to outlive the failure, and re-raising leaves the reader's own
+        # error dialog exactly as it was.
+        diagnostics.record_sync(False, error=error)
+
+        raise
+
+
+def _push(db, book_ids, notifications, log, abort):
     client = api()
+    # Carries the *previous* run's outcome, which is the point rather than an accident: a
+    # sync that fails is a sync the reader may not repeat, so the record has to survive
+    # until something next reaches the server.
     chunk_size = _chunk_size(client, log)
 
     accepted = 0
@@ -64,6 +82,7 @@ def push_library(db, book_ids, notifications=None, log=None, abort=None):
                 f'Sent {min(index + chunk_size, total)} of {total} books')
 
     note(f'Push finished: accepted {accepted}, skipped {skipped}, of {total}')
+    diagnostics.record_sync(True, books_sent=accepted)
 
     return {'accepted': accepted, 'skipped': skipped, 'total': total}
 

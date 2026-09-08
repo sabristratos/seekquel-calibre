@@ -7,7 +7,7 @@ import urllib.request
 import uuid
 from pathlib import Path
 
-from calibre_plugins.seekquel_sync import __version__
+from calibre_plugins.seekquel_sync import __version__, diagnostics
 from calibre_plugins.seekquel_sync.log import note
 
 USER_AGENT = f'Seekquel-Calibre/{__version__} (+https://seekquel.app)'
@@ -88,10 +88,14 @@ class SeekquelApi:
         )
 
     def report_device(self, device_name, platform, app_version):
+        # Whatever this install last managed, sent with the call that already happens at
+        # the start of every push. Omitted entirely when there is nothing to say, so a
+        # fresh install reports no diagnostics rather than a set of empty ones.
         return self._request('PUT', '/device', body={
             'device_name': device_name,
             'platform': platform,
             'app_version': app_version,
+            'diagnostics': diagnostics.snapshot(),
         })
 
     def push_library(self, books, library_uuid=None, import_tags=False):
@@ -178,12 +182,15 @@ class SeekquelApi:
         try:
             with urllib.request.urlopen(request, timeout=timeout, context=self._ssl_context()) as response:
                 body = self._decode(response.read())
-                note(f'{method} {path} -> {response.status} in {time.monotonic() - started:.1f}s')
+                elapsed = time.monotonic() - started
+                note(f'{method} {path} -> {response.status} in {elapsed:.1f}s')
+                diagnostics.record_call(method, path, elapsed)
 
                 return body
         except urllib.error.HTTPError as error:
             refusal = self._from_http_error(error)
             note(f'{method} {path} -> {error.code} {refusal.code or ""} {refusal}')
+            diagnostics.record_call(method, path, time.monotonic() - started)
 
             raise refusal from error
         except urllib.error.URLError as error:

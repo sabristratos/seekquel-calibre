@@ -4,6 +4,20 @@ All notable changes to this project are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-09-08
+
+### Added
+
+- **Seekquel can now see how your sync is going, so a problem does not have to be reported
+  to be noticed.** The plugin sends a short note with each sync saying whether the last one
+  worked, how many books it sent, how slow the server was, and, if something went wrong,
+  what. Nothing about your books or your library goes with it.
+
+  This is the gap the certificate problem in 1.4.1 through 1.4.3 fell through. Installs
+  with an out-of-date root store could not reach Seekquel at all, and nothing on our side
+  said so, so it was found only because a reader described it. A failed sync is now
+  recorded and sent with the next attempt, which is the one moment it can still be sent.
+
 ## [1.4.3] - 2026-09-02
 
 ### Fixed

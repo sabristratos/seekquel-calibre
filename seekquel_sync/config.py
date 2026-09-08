@@ -62,6 +62,13 @@ DEFAULTS = {
     'started_column': '',
     'finished_column': '',
     'progress_column': '',
+    # What this install last managed. Written by `diagnostics`, sent with the device
+    # report, and kept here rather than in memory because the failure worth reporting is
+    # usually the one that made the reader close Calibre.
+    'last_sync_at': 0,
+    'last_sync_ok': False,
+    'last_error': '',
+    'books_sent': 0,
 }
 
 prefs = JSONConfig('plugins/Seekquel Sync')
