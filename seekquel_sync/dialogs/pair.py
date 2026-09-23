@@ -9,7 +9,7 @@ from calibre_plugins.seekquel_sync.api import (
     SeekquelError,
     SeekquelUnreachable,
 )
-from calibre_plugins.seekquel_sync.config import DEFAULT_BASE_URL, prefs
+from calibre_plugins.seekquel_sync.config import DEFAULT_BASE_URL, clear_sync_marks, prefs
 from calibre_plugins.seekquel_sync.log import note
 from qt.core import (
     QDialog,
@@ -188,7 +188,7 @@ class PairDialog(QDialog):
 
         prefs['key'] = key
         prefs['device_id'] = answer.get('device_id') or ''
-        prefs['pull_marks'] = {}
+        clear_sync_marks()
 
         if answer.get('api_url'):
             prefs['base_url'] = answer['api_url'].rstrip('/')

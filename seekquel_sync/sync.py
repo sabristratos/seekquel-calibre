@@ -1,3 +1,8 @@
+import threading
+from contextlib import contextmanager
+from dataclasses import dataclass
+from datetime import datetime, timezone
+
 from calibre_plugins.seekquel_sync import __version__, diagnostics
 from calibre_plugins.seekquel_sync.api import (
     SeekquelApi,
@@ -11,8 +16,17 @@ from calibre_plugins.seekquel_sync.columns import (
     read_book,
     write_book,
 )
-from calibre_plugins.seekquel_sync.config import library_id, prefs, pull_mark, set_pull_mark
+from calibre_plugins.seekquel_sync.config import (
+    has_been_sent,
+    library_id,
+    prefs,
+    pull_mark,
+    push_mark,
+    set_pull_mark,
+    set_push_mark,
+)
 from calibre_plugins.seekquel_sync.log import note
+from calibre_plugins.seekquel_sync.scope import ScopeUnavailable, books_in_scope
 
 CHUNK_SIZE = 100
 MAX_COVERS_PER_RUN = 25
@@ -21,6 +35,36 @@ PREVIEW_SAMPLE = 40
 NEEDS_A_LOOK = ('unmatched', 'unidentified')
 
 STATE_FIELDS = ('status', 'rating', 'review', 'started_at', 'finished_at', 'progress_percent')
+
+BUSY_MESSAGE = 'Seekquel is already syncing this library. Try again when it has finished.'
+
+_running = threading.Lock()
+
+
+class SyncBusy(Exception):
+    pass
+
+
+@dataclass(frozen=True)
+class Flush:
+    library: str
+    started: str
+    books: list
+
+
+@contextmanager
+def exclusive():
+    if not _running.acquire(blocking=False):
+        raise SyncBusy(BUSY_MESSAGE)
+
+    try:
+        yield
+    finally:
+        _running.release()
+
+
+def is_syncing():
+    return _running.locked()
 
 
 def api():
@@ -55,7 +99,7 @@ def _push(db, book_ids, notifications, log, abort):
     total = len(book_ids)
 
     for index in range(0, total, chunk_size):
-        if abort is not None and abort.is_set():
+        if _aborted(abort):
             break
 
         payload = []
@@ -87,6 +131,99 @@ def _push(db, book_ids, notifications, log, abort):
     return {'accepted': accepted, 'skipped': skipped, 'total': total}
 
 
+def push_scope(db, book_ids, notifications=None, log=None, abort=None):
+    started = _now()
+    result = push_library(db, book_ids, notifications=notifications, log=log, abort=abort)
+
+    if not _aborted(abort):
+        set_push_mark(library_id(db), started)
+
+    return result
+
+
+def automatic_sync(db, abort):
+    with exclusive():
+        if not has_been_sent(db):
+            note('Automatic sync skipped: this library has not been sent from here yet')
+
+            return None
+
+        try:
+            book_ids = books_in_scope(db)
+        except ScopeUnavailable as error:
+            diagnostics.record_sync(False, error=error)
+
+            raise
+
+        started = _now()
+        changed = changed_books(db, book_ids)
+        note(f'Automatic sync: {len(changed)} of {len(book_ids)} books changed since the last one')
+        pushed = push_library(db, changed, abort=abort)
+
+        if _aborted(abort):
+            return None
+
+        set_push_mark(library_id(db), started)
+
+        try:
+            pulled = pull_library(db, abort=abort)
+        except Exception as error:
+            diagnostics.record_sync(False, error=error)
+
+            raise
+
+        return {'pushed': pushed, 'pulled': pulled}
+
+
+def prepare_flush(db):
+    if push_mark(db) is None:
+        return None
+
+    try:
+        book_ids = books_in_scope(db)
+    except ScopeUnavailable:
+        return None
+
+    started = _now()
+    changed = changed_books(db, book_ids)
+
+    if not changed or len(changed) > CHUNK_SIZE:
+        return None
+
+    books = [book for book in (read_book(db, book_id) for book_id in changed) if book.get('uuid')]
+
+    if not books:
+        return None
+
+    return Flush(library_id(db), started, books)
+
+
+def send_flush(flush):
+    with exclusive():
+        try:
+            result = api().push_library(flush.books, flush.library or None, prefs.get('push_tags'))
+        except Exception as error:
+            diagnostics.record_sync(False, error=error)
+
+            raise
+
+        taken = int(result.get('books_accepted') or 0)
+        set_push_mark(flush.library, flush.started)
+        diagnostics.record_sync(True, books_sent=taken)
+        note(f'Sent {len(flush.books)} changed books on the way out, Seekquel took {taken}')
+
+
+def changed_books(db, book_ids):
+    mark = _parse_mark(push_mark(db))
+
+    if mark is None:
+        return list(book_ids)
+
+    modified = db.all_field_for('last_modified', book_ids)
+
+    return [book_id for book_id in book_ids if _modified_since(modified.get(book_id), mark)]
+
+
 def pull_library(db, notifications=None, log=None, abort=None):
     since, since_id = pull_mark(db)
     note(f"Pull started, since {since or 'the beginning'}")
@@ -101,6 +238,9 @@ def pull_library(db, notifications=None, log=None, abort=None):
     by_uuid = _uuid_index(db)
 
     for rows, synced_at, synced_id, has_more in _pages(client, since, since_id, abort):
+        if _aborted(abort):
+            break
+
         for row in rows:
             book_id = by_uuid.get(row.get('uuid'))
 
@@ -166,7 +306,7 @@ def report_device(gui, log=None):
 
 def _pages(client, since, since_id, abort):
     while True:
-        if abort is not None and abort.is_set():
+        if _aborted(abort):
             return
 
         result = client.pull_library(since, since_id)
@@ -191,7 +331,7 @@ def _sending_preview(db, book_ids, abort=None):
     sending = 0
 
     for book_id in book_ids:
-        if abort is not None and abort.is_set():
+        if _aborted(abort):
             break
 
         book = read_book(db, book_id)
@@ -285,7 +425,7 @@ def _send_covers(db, client, wanted, log=None, abort=None):
     sent = 0
 
     for uuid, book_id in wanted[:MAX_COVERS_PER_RUN]:
-        if abort is not None and abort.is_set():
+        if _aborted(abort):
             break
 
         if not uuid:
@@ -354,6 +494,31 @@ def _device_name(gui):
         return gui.current_db.library_path.rstrip('/\\').rsplit('/', 1)[-1].rsplit('\\', 1)[-1]
     except Exception:
         return 'Calibre'
+
+
+def _now():
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _parse_mark(value):
+    if not value:
+        return None
+
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def _modified_since(value, mark):
+    try:
+        return value is None or value >= mark
+    except TypeError:
+        return True
+
+
+def _aborted(abort):
+    return abort is not None and abort.is_set()
 
 
 def _note(log, message):

@@ -15,6 +15,12 @@ from qt.core import (
 
 DEFAULT_BASE_URL = 'https://api.seekquel.app/calibre'
 
+ACTION_NAME = 'Seekquel Sync'
+
+AUTO_SYNC_OFF = 0
+AUTO_SYNC_MINUTES = (AUTO_SYNC_OFF, 5, 15, 30, 60)
+DEFAULT_AUTO_SYNC_MINUTES = 15
+
 STATUS_VALUES = [
     ('want_to_read', 'Want to read'),
     ('reading', 'Reading'),
@@ -41,11 +47,27 @@ SCOPE_SEPARATOR = ':'
 LABEL_SEPARATOR = ','
 MARK_SEPARATOR = '|'
 
+SEND_EVERYTHING = ''
+
+PAYLOAD_PREFS = (
+    'send_scope',
+    'send_scope_value',
+    'status_labels',
+    'push_status',
+    'push_ratings',
+    'push_reviews',
+    'push_dates',
+    'push_tags',
+    *(key for key, _label, _kinds in COLUMN_FIELDS),
+)
+
 DEFAULTS = {
     'base_url': DEFAULT_BASE_URL,
     'key': '',
     'device_id': '',
     'pull_marks': {},
+    'push_marks': {},
+    'auto_sync_minutes': DEFAULT_AUTO_SYNC_MINUTES,
     'push_ratings': True,
     'push_reviews': True,
     'push_dates': True,
@@ -82,8 +104,26 @@ def is_connected():
 def forget_connection():
     prefs['key'] = ''
     prefs['device_id'] = ''
-    prefs['pull_marks'] = {}
+    clear_sync_marks()
     prefs.commit()
+
+
+def clear_sync_marks():
+    prefs['pull_marks'] = {}
+    prefs['push_marks'] = {}
+
+
+def auto_sync_minutes():
+    try:
+        minutes = int(prefs.get('auto_sync_minutes'))
+    except (TypeError, ValueError):
+        return DEFAULT_AUTO_SYNC_MINUTES
+
+    return minutes if minutes in AUTO_SYNC_MINUTES else DEFAULT_AUTO_SYNC_MINUTES
+
+
+def syncs_automatically():
+    return is_connected() and auto_sync_minutes() != AUTO_SYNC_OFF
 
 
 def library_id(db):
@@ -111,10 +151,37 @@ def set_pull_mark(db, value, mark_id=None):
     prefs.commit()
 
 
+def has_been_sent(db):
+    return library_id(db) in (prefs.get('push_marks') or {}) or pull_mark(db)[0] is not None
+
+
+def push_mark(db):
+    return (prefs.get('push_marks') or {}).get(library_id(db)) or None
+
+
+def set_push_mark(library, value):
+    marks = dict(prefs.get('push_marks') or {})
+    marks[library] = value
+    prefs['push_marks'] = marks
+    prefs.commit()
+
+
+def send_everything_next_time():
+    prefs['push_marks'] = dict.fromkeys(prefs.get('push_marks') or {}, SEND_EVERYTHING)
+    prefs.commit()
+
+
 def _gui():
     from calibre.gui2.ui import get_gui
 
     return get_gui()
+
+
+def _reschedule_automatic_sync():
+    action = (getattr(_gui(), 'iactions', None) or {}).get(ACTION_NAME)
+
+    if action is not None:
+        action.schedule_automatic_sync()
 
 
 class ConfigWidget(QWidget):
@@ -135,7 +202,9 @@ class ConfigWidget(QWidget):
         return self
 
     def save_settings(self):
+        sending_before = self._sending_settings()
         prefs['base_url'] = self.base_url.text().strip().rstrip('/')
+        prefs['auto_sync_minutes'] = self.auto_sync_box.currentData()
 
         for key in self.column_boxes:
             prefs[key] = self.column_boxes[key].currentData() or ''
@@ -162,6 +231,14 @@ class ConfigWidget(QWidget):
         prefs['push_tags'] = self.push_tags.isChecked()
         prefs.commit()
 
+        if self._sending_settings() != sending_before:
+            send_everything_next_time()
+
+        _reschedule_automatic_sync()
+
+    def _sending_settings(self):
+        return {key: prefs.get(key) for key in PAYLOAD_PREFS}
+
     def _connection_tab(self):
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -187,9 +264,31 @@ class ConfigWidget(QWidget):
 
         connection_form.addRow('Status', self._wrap(row))
         layout.addWidget(connection)
+        layout.addWidget(self._automatic_group())
         layout.addStretch(1)
 
         return page
+
+    def _automatic_group(self):
+        group = QGroupBox('Sync automatically')
+        form = QFormLayout(group)
+        form.addRow(QLabel(
+            'Seekquel syncs a little after Calibre opens, then on this schedule, sending only\n'
+            'the books that changed. Changes are also sent when you close Calibre or switch\n'
+            'library. A library starts syncing on its own once you have sent it yourself.\n'
+            'A sync that fails is noted in the log and tried again next time.'
+        ))
+
+        self.auto_sync_box = QComboBox()
+
+        for minutes in AUTO_SYNC_MINUTES:
+            label = 'Off' if minutes == AUTO_SYNC_OFF else f'Every {minutes} minutes'
+            self.auto_sync_box.addItem(label, minutes)
+
+        self.auto_sync_box.setCurrentIndex(max(self.auto_sync_box.findData(auto_sync_minutes()), 0))
+        form.addRow('Sync', self.auto_sync_box)
+
+        return group
 
     def _columns_tab(self):
         page = QWidget()

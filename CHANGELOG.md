@@ -4,6 +4,31 @@ All notable changes to this project are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-09-23
+
+### Added
+
+- **Seekquel keeps your library in step on its own.** Once you have sent a library
+  yourself, the plugin syncs half a minute after Calibre opens and then every fifteen
+  minutes while it stays open, sending only the books that changed since the last sync and
+  bringing Seekquel's side back into your columns. Changes are also sent when you close
+  Calibre or switch library, as long as that takes no more than a few seconds; anything
+  left over goes with the next sync. Choose every 5, 15, 30 or 60 minutes, or Off, under
+  Settings, Connection, Sync automatically.
+
+  It never opens a window. The first line of the Seekquel menu says when it last synced or
+  that the last attempt failed, the log says why, and a failed sync is tried again next
+  time. A library you connected but never sent stays manual until you send it once, so
+  nothing leaves Calibre before you have chosen which books go.
+- **Only one sync runs at a time.** Asking for a sync while another is running now says so
+  instead of starting a second one alongside it.
+
+### Fixed
+
+- **The plugin no longer says it syncs your shelves.** It carries each book's reading
+  status (want to read, reading, read, paused, did not finish), and custom shelves you make
+  in Seekquel stay there.
+
 ## [1.5.0] - 2026-09-08
 
 ### Added
