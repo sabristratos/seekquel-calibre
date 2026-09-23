@@ -1,8 +1,10 @@
 # Seekquel for Calibre
 
-Connects a Calibre library to [Seekquel](https://seekquel.app). Your shelves, ratings,
-reviews and reading dates travel in both directions, so the library you already keep on
-your computer and the one you carry on your phone stay the same library.
+Connects a Calibre library to [Seekquel](https://seekquel.app). Each book's reading status
+(want to read, reading, read, paused, did not finish), rating, review and reading dates
+travel in both directions, so the library you already keep on your computer and the one
+you carry on your phone stay the same library. Custom shelves you make in Seekquel are not
+synced; they stay in Seekquel.
 
 Works with Calibre 6 and later on Windows, macOS and Linux.
 
@@ -101,6 +103,24 @@ Matching happens on the server, so give it a moment before reading the results b
 **Seekquel > Bring Seekquel up to date here** pulls, and writes into the columns you
 mapped. Each matched book also gains a `seekquel` identifier, which is what **View this
 book on Seekquel** uses.
+
+### On its own
+
+Once you have sent a library yourself, the plugin keeps it in step without being asked.
+Half a minute after Calibre opens, and then every fifteen minutes while it stays open, it
+sends the books that changed since the last sync and brings Seekquel's side back into your
+columns. Changes you made are also sent when you close Calibre or switch library, as long
+as that takes no more than a few seconds; anything left over goes with the next sync.
+
+It never opens a window. The first line of the **Seekquel** menu says when it last synced,
+or that the last attempt failed, and **Show the log** says why. A failed sync is simply
+tried again next time.
+
+Choose how often under **Settings > Connection > Sync automatically**: every 5, 15, 30 or
+60 minutes, or **Off** to sync only when you ask. Changing which books or fields are sent
+makes the next sync send the whole set again, so nothing is left behind by the change.
+Only one sync runs at a time: if you ask for one while another is running, the plugin says
+so and you can try again when it finishes.
 
 ## When something is not right
 
