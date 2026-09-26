@@ -148,6 +148,10 @@ Everything else is short enough that losing it costs a retype; paragraphs are no
 counts towards a reading goal and can earn a badge. A status column you last touched two
 years ago is not grounds for taking all of that back.
 
+**It never sets a started book back to want to read.** When Seekquel says want to read and
+your status column already says reading, paused, read or did not finish, your column is
+kept.
+
 **It never invents a book.** A book the Seekquel catalogue cannot place is not guessed at
 and not silently filed as a private copy. It waits for you under **Settings > Integrations
 > Calibre > Books from Calibre**, where you can look for it online, point it at the right

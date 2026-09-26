@@ -23,6 +23,8 @@ STATUS_ALIASES = {
     'dnf': 'did_not_finish',
     'abandoned': 'did_not_finish',
 }
+UNSTARTED_STATUS = 'want_to_read'
+STARTED_STATUSES = frozenset({'reading', 'paused', 'read', 'did_not_finish'})
 
 
 def max_tags():
@@ -182,7 +184,7 @@ def plan_book(db, book_id, remote):
 
     status = remote.get('status')
 
-    if status and prefs.get('status_column'):
+    if status and prefs.get('status_column') and not _is_downgrade(db, book_id, status):
         changes[prefs['status_column']] = label_for(status)
 
     rating = remote.get('rating')
@@ -367,6 +369,15 @@ def _fit_progress(db, column, progress):
         datatype = None
 
     return round(progress) if datatype == 'int' else round(float(progress), 2)
+
+
+def _is_downgrade(db, book_id, status):
+    if status != UNSTARTED_STATUS:
+        return False
+
+    local = _normalize_status(column_value(db, book_id, prefs['status_column']))
+
+    return local in STARTED_STATUSES
 
 
 def _normalize_status(value):
