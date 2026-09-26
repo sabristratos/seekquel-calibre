@@ -4,6 +4,17 @@ All notable changes to this project are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.1] - 2026-09-25
+
+### Fixed
+
+- **A book you have started or finished in Calibre is no longer set back to want to read.**
+  A book Seekquel could not place at first, and found later, arrived there as want to read,
+  and the next sync wrote that label into your status column over the read or reading you
+  had set. The plugin now keeps your own status whenever Seekquel's side says want to read
+  and your column already says reading, paused, read or did not finish. Every other change
+  still comes across as before.
+
 ## [1.6.0] - 2026-09-23
 
 ### Added
