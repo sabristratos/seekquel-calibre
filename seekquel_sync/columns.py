@@ -5,6 +5,9 @@ from calibre_plugins.seekquel_sync.config import LABEL_SEPARATOR, STATUS_VALUES,
 
 CALIBRE_RATING_SCALE = 2.0
 MAX_TAGS = 250
+MAX_IDENTIFIERS = 20
+MAX_IDENTIFIER_LENGTH = 128
+PRIORITY_SCHEMES = ('isbn', 'url', 'seekquel')
 EARLIEST_PUBLICATION_YEAR = 1000
 
 IDENTIFIERS_COLUMN = 'identifiers'
@@ -31,6 +34,35 @@ def max_tags():
     published = int(prefs.get('max_tags_per_book') or 0)
 
     return published if published > 0 else MAX_TAGS
+
+
+def max_identifiers():
+    published = int(prefs.get('max_identifiers_per_book') or 0)
+
+    return published if published > 0 else MAX_IDENTIFIERS
+
+
+def max_identifier_length():
+    published = int(prefs.get('max_identifier_length') or 0)
+
+    return published if published > 0 else MAX_IDENTIFIER_LENGTH
+
+
+def fit_identifiers(identifiers):
+    length = max_identifier_length()
+    kept = {
+        scheme: value
+        for scheme, value in identifiers.items()
+        if isinstance(value, str) and len(value) <= length
+    }
+    ceiling = max_identifiers()
+
+    if len(kept) <= ceiling:
+        return kept
+
+    ordered = sorted(kept, key=lambda scheme: (scheme not in PRIORITY_SCHEMES, scheme))
+
+    return {scheme: kept[scheme] for scheme in ordered[:ceiling]}
 
 
 def status_labels():
@@ -69,7 +101,7 @@ def read_book(db, book_id):
         'title': db.field_for('title', book_id),
         'authors': ' & '.join(db.field_for('authors', book_id) or []),
         'isbn': identifiers.get('isbn'),
-        'identifiers': {k: v for k, v in identifiers.items() if isinstance(v, str)},
+        'identifiers': fit_identifiers(identifiers),
         'series': db.field_for('series', book_id),
         'series_index': db.field_for('series_index', book_id),
         'page_count': None,
