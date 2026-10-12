@@ -75,6 +75,8 @@ DEFAULTS = {
     'push_covers': True,
     'push_tags': False,
     'max_tags_per_book': 0,
+    'max_identifiers_per_book': 0,
+    'max_identifier_length': 0,
     'send_scope': SCOPE_ALL,
     'send_scope_value': '',
     'status_labels': {},

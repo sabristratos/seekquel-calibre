@@ -1,3 +1,4 @@
+import re
 import threading
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -29,6 +30,9 @@ from calibre_plugins.seekquel_sync.log import note
 from calibre_plugins.seekquel_sync.scope import ScopeUnavailable, books_in_scope
 
 CHUNK_SIZE = 100
+VALIDATION_STATUS = 422
+REFUSED_BOOK_PATTERN = re.compile(r'\bbooks\.(\d+)\.')
+PUBLISHED_CEILINGS = ('max_tags_per_book', 'max_identifiers_per_book', 'max_identifier_length')
 MAX_COVERS_PER_RUN = 25
 PREVIEW_SAMPLE = 40
 
@@ -96,6 +100,7 @@ def _push(db, book_ids, notifications, log, abort):
 
     accepted = 0
     skipped = 0
+    refused = []
     total = len(book_ids)
 
     for index in range(0, total, chunk_size):
@@ -117,18 +122,66 @@ def _push(db, book_ids, notifications, log, abort):
         if not payload:
             continue
 
-        result = client.push_library(payload, library_id(db) or None, prefs.get('push_tags'))
-        taken = int(result.get('books_accepted') or 0)
+        taken, turned_away = push_chunk(client, payload, library_id(db) or None, prefs.get('push_tags'), log)
         accepted += taken
+        refused.extend(turned_away)
         _note(log, f'Sent {len(payload)} books, Seekquel took {taken}')
 
         _report(notifications, min(index + chunk_size, total) / max(total, 1),
                 f'Sent {min(index + chunk_size, total)} of {total} books')
 
-    note(f'Push finished: accepted {accepted}, skipped {skipped}, of {total}')
-    diagnostics.record_sync(True, books_sent=accepted)
+    note(f'Push finished: accepted {accepted}, skipped {skipped}, refused {len(refused)}, of {total}')
+    diagnostics.record_sync(True, books_sent=accepted, error=_refusal_summary(refused))
 
-    return {'accepted': accepted, 'skipped': skipped, 'total': total}
+    return {'accepted': accepted, 'skipped': skipped, 'refused': refused, 'total': total}
+
+
+def push_chunk(client, books, library, import_tags, log=None):
+    remaining = list(books)
+    refused = []
+
+    while remaining:
+        try:
+            result = client.push_library(remaining, library, import_tags)
+        except SeekquelError as error:
+            index = _refused_index(error, len(remaining))
+
+            if index is None:
+                raise
+
+            book = remaining.pop(index)
+            title = book.get('title') or book.get('uuid') or 'a book'
+            refused.append((title, str(error)))
+            _note(log, f'Seekquel refused "{title}" and took the rest: {error}')
+
+            continue
+
+        return int(result.get('books_accepted') or 0), refused
+
+    return 0, refused
+
+
+def _refused_index(error, count):
+    if error.status != VALIDATION_STATUS:
+        return None
+
+    match = REFUSED_BOOK_PATTERN.search(str(error))
+
+    if match is None:
+        return None
+
+    index = int(match.group(1))
+
+    return index if index < count else None
+
+
+def _refusal_summary(refused):
+    if not refused:
+        return None
+
+    noun = 'book' if len(refused) == 1 else 'books'
+
+    return f'{len(refused)} {noun} refused: {refused[0][1]}'
 
 
 def push_scope(db, book_ids, notifications=None, log=None, abort=None):
@@ -201,15 +254,14 @@ def prepare_flush(db):
 def send_flush(flush):
     with exclusive():
         try:
-            result = api().push_library(flush.books, flush.library or None, prefs.get('push_tags'))
+            taken, refused = push_chunk(api(), flush.books, flush.library or None, prefs.get('push_tags'))
         except Exception as error:
             diagnostics.record_sync(False, error=error)
 
             raise
 
-        taken = int(result.get('books_accepted') or 0)
         set_push_mark(flush.library, flush.started)
-        diagnostics.record_sync(True, books_sent=taken)
+        diagnostics.record_sync(True, books_sent=taken, error=_refusal_summary(refused))
         note(f'Sent {len(flush.books)} changed books on the way out, Seekquel took {taken}')
 
 
@@ -461,7 +513,7 @@ def _chunk_size(client, log=None):
     try:
         answer = client.report_device(None, 'calibre', __version__)
         published = int(answer.get('max_books_per_push') or 0)
-        _remember_tag_ceiling(answer)
+        _remember_ceilings(answer)
     except Exception as error:
         _note(log, f'Could not ask Seekquel how many books it takes at once: {error}')
         published = 0
@@ -469,11 +521,17 @@ def _chunk_size(client, log=None):
     return published if published > 0 else CHUNK_SIZE
 
 
-def _remember_tag_ceiling(answer):
-    published = int(answer.get('max_tags_per_book') or 0)
+def _remember_ceilings(answer):
+    changed = False
 
-    if published > 0 and published != prefs.get('max_tags_per_book'):
-        prefs['max_tags_per_book'] = published
+    for key in PUBLISHED_CEILINGS:
+        published = int(answer.get(key) or 0)
+
+        if published > 0 and published != prefs.get(key):
+            prefs[key] = published
+            changed = True
+
+    if changed:
         prefs.commit()
 
 

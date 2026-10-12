@@ -42,6 +42,7 @@ ICON_PATH = 'images/seekquel.png'
 
 AUTO_SYNC_START_DELAY_SECONDS = 30
 STAND_DOWN_BUDGET_SECONDS = 3
+REFUSED_SHOWN = 5
 SECONDS_PER_MINUTE = 60
 MILLISECONDS_PER_SECOND = 1000
 
@@ -502,6 +503,16 @@ class SeekquelSyncAction(InterfaceAction):
 
         if name is not None:
             message += f'\n\nThose are the books matching "{name}", which is what Settings says to send.'
+
+        refused = result.get('refused') or []
+
+        if refused:
+            names = ', '.join(f'"{title}"' for title, _reason in refused[:REFUSED_SHOWN])
+            more = len(refused) - REFUSED_SHOWN
+            noun = 'book' if len(refused) == 1 else 'books'
+            message += f'\n\nSeekquel turned away {len(refused)} {noun} and took the rest: {names}'
+            message += f' and {more} more.' if more > 0 else '.'
+            message += ' The log says why for each.'
 
         if skipped == 1:
             message += '\n\nOne was skipped because Calibre has no id for it yet.'

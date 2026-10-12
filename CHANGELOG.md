@@ -4,6 +4,19 @@ All notable changes to this project are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.2] - 2026-10-12
+
+### Fixed
+
+- **One book Seekquel cannot take no longer holds up the rest of your library.** A book
+  carrying a link longer than Seekquel accepted made it refuse the whole batch that book
+  travelled in, and because an automatic sync never opens a window, the library simply
+  stopped syncing with nothing on screen to say so. The plugin now leaves such a link out
+  of what it sends. If Seekquel still turns a book away for another reason, the rest of the
+  batch goes through, the book is named in the dialog after you send a library by hand, and
+  the log says why. Seekquel tells the plugin how much of a book's links it takes, so that
+  limit can change without an update here.
+
 ## [1.6.1] - 2026-09-25
 
 ### Fixed
