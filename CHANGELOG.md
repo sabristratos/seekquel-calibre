@@ -4,6 +4,17 @@ All notable changes to this project are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Your Seekquel key no longer follows a redirect to another site.** The key is now
+  attached to the request in a way that is dropped if the server redirects it elsewhere.
+- **Pairing only accepts an address that is secure.** If Seekquel hands back a different
+  address when you connect, the plugin ignores it unless it starts with https.
+- **A read-back that stops moving ends instead of repeating.** If the server answered with
+  the same place to continue from twice, the plugin asked for the same page forever.
+
 ## [1.6.2] - 2026-10-12
 
 ### Fixed

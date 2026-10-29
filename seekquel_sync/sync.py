@@ -369,7 +369,7 @@ def _pages(client, since, since_id, abort):
 
         yield rows, synced_at, synced_id, has_more
 
-        if not has_more:
+        if not has_more or (synced_at, synced_id) == (since, since_id):
             return
 
         since = synced_at

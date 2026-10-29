@@ -175,7 +175,7 @@ class SeekquelApi:
             if not self.key:
                 raise SeekquelError('This library is not connected to Seekquel yet.')
 
-            request.add_header('Authorization', 'Bearer ' + self.key)
+            request.add_unredirected_header('Authorization', 'Bearer ' + self.key)
 
         started = time.monotonic()
 
