@@ -175,7 +175,8 @@ class SeekquelApi:
             if not self.key:
                 raise SeekquelError('This library is not connected to Seekquel yet.')
 
-            request.add_header('Authorization', 'Bearer ' + self.key)
+            # Unredirected, so a redirect to another host never carries the device key with it.
+            request.add_unredirected_header('Authorization', 'Bearer ' + self.key)
 
         started = time.monotonic()
 

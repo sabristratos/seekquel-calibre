@@ -190,8 +190,10 @@ class PairDialog(QDialog):
         prefs['device_id'] = answer.get('device_id') or ''
         clear_sync_marks()
 
-        if answer.get('api_url'):
-            prefs['base_url'] = answer['api_url'].rstrip('/')
+        api_url = answer.get('api_url')
+
+        if isinstance(api_url, str) and api_url.startswith('https://'):
+            prefs['base_url'] = api_url.rstrip('/')
 
         prefs.commit()
 
