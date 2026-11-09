@@ -4,7 +4,22 @@ All notable changes to this project are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.7.0] - 2026-11-09
+
+### Added
+
+- **How far you read in Calibre's own e-book viewer reaches Seekquel, with nothing to set
+  up.** From Calibre 9.5 the viewer remembers your place in the library. For a book you are
+  reading, the plugin now sends that place with the rest of the book, so your place in
+  Seekquel moves forward without a progress column. It only moves your place and never
+  changes a book's status: a book you put down, paused or have not started yet keeps its
+  status however far you opened it in the viewer. A book counts as one you are reading when
+  your status column says so, or, with no status column, when Seekquel has it as Reading.
+  If you also map a progress column, whichever is further along is sent. Once the plugin
+  has read back which books Seekquel has as Reading, the next sync sends every one of them
+  you have opened in the viewer; after that, a book you read is sent at the next sync even
+  when nothing else about it changed. Older Calibre releases keep no such place, and sync
+  exactly as before.
 
 ### Fixed
 

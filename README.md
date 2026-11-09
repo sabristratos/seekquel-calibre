@@ -47,6 +47,14 @@ included.
 | Date finished | Date |
 | Progress (%) | Integers, or a floating point column |
 
+From plugin 1.7.0, on Calibre 9.5 or later, you can leave Progress unset: for a book you
+are reading, how far you have read in Calibre's own e-book viewer is sent anyway. A book
+counts as one you are reading when your status column says so, or, with no status column,
+when Seekquel has it as Reading. The viewer place only moves your place forward and never
+changes a book's status, so a book you put down or have not started stays as it is.
+Calibre's *Read progress* column shows the same thing and is built from a template, so it
+is not offered in the list and does not need to be.
+
 Custom columns are made under **Preferences > Add your own columns**. Calibre asks you to
 restart after adding one.
 
@@ -165,6 +173,8 @@ reader. Its progress column is typed by hand or copied off a device days later, 
 cannot know when you read those pages. So a percentage moves your place in the book and is
 never credited to a day's reading, because crediting it would bill an afternoon for a book
 you finished in March.
+The same goes for your place in Calibre's own viewer, and Seekquel only ever moves your
+place forward, so an old place in the viewer never sets you back.
 
 ## How a book is matched
 

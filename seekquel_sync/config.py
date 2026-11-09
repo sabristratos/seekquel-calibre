@@ -1,4 +1,5 @@
 from calibre.utils.config import JSONConfig
+from calibre_plugins.seekquel_sync.viewer import records_position
 from qt.core import (
     QCheckBox,
     QComboBox,
@@ -67,6 +68,8 @@ DEFAULTS = {
     'device_id': '',
     'pull_marks': {},
     'push_marks': {},
+    'viewer_caught_up': {},
+    'reading_on_seekquel': {},
     'auto_sync_minutes': DEFAULT_AUTO_SYNC_MINUTES,
     'push_ratings': True,
     'push_reviews': True,
@@ -113,6 +116,8 @@ def forget_connection():
 def clear_sync_marks():
     prefs['pull_marks'] = {}
     prefs['push_marks'] = {}
+    prefs['viewer_caught_up'] = {}
+    prefs['reading_on_seekquel'] = {}
 
 
 def auto_sync_minutes():
@@ -165,6 +170,29 @@ def set_push_mark(library, value):
     marks = dict(prefs.get('push_marks') or {})
     marks[library] = value
     prefs['push_marks'] = marks
+
+    if records_position() and library in (prefs.get('reading_on_seekquel') or {}):
+        caught_up = dict(prefs.get('viewer_caught_up') or {})
+        caught_up[library] = True
+        prefs['viewer_caught_up'] = caught_up
+
+    prefs.commit()
+
+
+def viewer_caught_up(db):
+    return bool((prefs.get('viewer_caught_up') or {}).get(library_id(db)))
+
+
+def reading_on_seekquel(db):
+    held = (prefs.get('reading_on_seekquel') or {}).get(library_id(db))
+
+    return None if held is None else frozenset(held)
+
+
+def set_reading_on_seekquel(db, uuids):
+    held = dict(prefs.get('reading_on_seekquel') or {})
+    held[library_id(db)] = sorted(uuids)
+    prefs['reading_on_seekquel'] = held
     prefs.commit()
 
 
@@ -308,6 +336,14 @@ class ConfigWidget(QWidget):
             self._fill_column_box(box, key, kinds)
             self.column_boxes[key] = box
             columns_form.addRow(label, box)
+
+        if records_position():
+            viewer_hint = QLabel(
+                "For a book you are reading, your place in Calibre's own e-book viewer "
+                'is sent as well, with no column needed.'
+            )
+            viewer_hint.setWordWrap(True)
+            columns_form.addRow(viewer_hint)
 
         layout.addWidget(columns)
 

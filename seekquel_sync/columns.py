@@ -1,7 +1,13 @@
 from calibre.ebooks.markdown import Markdown
 from calibre.utils.date import parse_date, utcnow
 from calibre.utils.html2text import html2text
-from calibre_plugins.seekquel_sync.config import LABEL_SEPARATOR, STATUS_VALUES, prefs
+from calibre_plugins.seekquel_sync.config import (
+    LABEL_SEPARATOR,
+    STATUS_VALUES,
+    prefs,
+    reading_on_seekquel,
+)
+from calibre_plugins.seekquel_sync.viewer import viewer_progress
 
 CALIBRE_RATING_SCALE = 2.0
 MAX_TAGS = 250
@@ -27,6 +33,7 @@ STATUS_ALIASES = {
     'abandoned': 'did_not_finish',
 }
 UNSTARTED_STATUS = 'want_to_read'
+READING_STATUS = 'reading'
 STARTED_STATUSES = frozenset({'reading', 'paused', 'read', 'did_not_finish'})
 
 
@@ -203,12 +210,34 @@ def read_state(db, book_id):
         if finished:
             state['finished_at'] = finished
 
-    progress = column_value(db, book_id, prefs.get('progress_column'))
+    progress = _read_progress(db, book_id)
 
-    if isinstance(progress, (int, float)) and 0 < progress <= 100:
-        state['progress_percent'] = float(progress)
+    if progress is not None:
+        state['progress_percent'] = progress
 
     return state
+
+
+def _read_progress(db, book_id):
+    column = column_value(db, book_id, prefs.get('progress_column'))
+    readings = []
+
+    if isinstance(column, (int, float)) and 0 < column <= 100:
+        readings.append(float(column))
+
+    if follows_viewer(db, book_id):
+        readings.append(viewer_progress(db, book_id))
+
+    return max((reading for reading in readings if reading is not None), default=None)
+
+
+def follows_viewer(db, book_id):
+    local = _normalize_status(column_value(db, book_id, prefs.get('status_column')))
+
+    if local is not None:
+        return local == READING_STATUS
+
+    return db.field_for('uuid', book_id) in (reading_on_seekquel(db) or ())
 
 
 def plan_book(db, book_id, remote):

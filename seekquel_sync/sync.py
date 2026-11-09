@@ -11,8 +11,10 @@ from calibre_plugins.seekquel_sync.api import (
     SeekquelUnreachable,
 )
 from calibre_plugins.seekquel_sync.columns import (
+    READING_STATUS,
     column_name,
     describe,
+    follows_viewer,
     plan_book,
     read_book,
     write_book,
@@ -23,11 +25,15 @@ from calibre_plugins.seekquel_sync.config import (
     prefs,
     pull_mark,
     push_mark,
+    reading_on_seekquel,
     set_pull_mark,
     set_push_mark,
+    set_reading_on_seekquel,
+    viewer_caught_up,
 )
 from calibre_plugins.seekquel_sync.log import note
 from calibre_plugins.seekquel_sync.scope import ScopeUnavailable, books_in_scope
+from calibre_plugins.seekquel_sync.viewer import read_in_viewer_since
 
 CHUNK_SIZE = 100
 VALIDATION_STATUS = 422
@@ -35,6 +41,7 @@ REFUSED_BOOK_PATTERN = re.compile(r'\bbooks\.(\d+)\.')
 PUBLISHED_CEILINGS = ('max_tags_per_book', 'max_identifiers_per_book', 'max_identifier_length')
 MAX_COVERS_PER_RUN = 25
 PREVIEW_SAMPLE = 40
+EARLIEST_READ = datetime.fromtimestamp(0, timezone.utc)
 
 NEEDS_A_LOOK = ('unmatched', 'unidentified')
 
@@ -272,8 +279,12 @@ def changed_books(db, book_ids):
         return list(book_ids)
 
     modified = db.all_field_for('last_modified', book_ids)
+    changed = {book_id for book_id in book_ids if _modified_since(modified.get(book_id), mark)}
+    since = mark if viewer_caught_up(db) else EARLIEST_READ
+    followed = [book_id for book_id in book_ids if book_id not in changed and follows_viewer(db, book_id)]
+    changed.update(read_in_viewer_since(db, followed, since))
 
-    return [book_id for book_id in book_ids if _modified_since(modified.get(book_id), mark)]
+    return [book_id for book_id in book_ids if book_id in changed]
 
 
 def pull_library(db, notifications=None, log=None, abort=None):
@@ -288,6 +299,13 @@ def pull_library(db, notifications=None, log=None, abort=None):
     written = []
     wanted = []
     by_uuid = _uuid_index(db)
+    held = reading_on_seekquel(db)
+
+    if held is None and since is not None:
+        held = _reading_on_seekquel(client, by_uuid, abort)
+
+    reading = set(held or ())
+    seeds_reading = held is None and since is None
 
     for rows, synced_at, synced_id, has_more in _pages(client, since, since_id, abort):
         if _aborted(abort):
@@ -300,6 +318,8 @@ def pull_library(db, notifications=None, log=None, abort=None):
                 missing += 1
 
                 continue
+
+            _track_reading(reading, row)
 
             if row.get('match_status') in NEEDS_A_LOOK:
                 unmatched += 1
@@ -314,9 +334,15 @@ def pull_library(db, notifications=None, log=None, abort=None):
         if synced_at:
             set_pull_mark(db, synced_at, synced_id)
 
+        if held is not None:
+            set_reading_on_seekquel(db, reading)
+
         seen += len(rows)
         _note(log, f'Read {len(rows)} books back from Seekquel')
         _report(notifications, 0.5 if has_more else 1.0, f'Read {seen} books back from Seekquel')
+
+    if seeds_reading and not _aborted(abort):
+        set_reading_on_seekquel(db, reading)
 
     covers = _send_covers(db, client, wanted, log, abort)
 
@@ -374,6 +400,24 @@ def _pages(client, since, since_id, abort):
 
         since = synced_at
         since_id = synced_id
+
+
+def _reading_on_seekquel(client, by_uuid, abort):
+    reading = set()
+
+    for rows, _synced_at, _synced_id, _has_more in _pages(client, None, None, abort):
+        for row in rows:
+            if row.get('uuid') in by_uuid:
+                _track_reading(reading, row)
+
+    return None if _aborted(abort) else reading
+
+
+def _track_reading(reading, row):
+    if row.get('status') == READING_STATUS:
+        reading.add(row.get('uuid'))
+    else:
+        reading.discard(row.get('uuid'))
 
 
 def _sending_preview(db, book_ids, abort=None):
